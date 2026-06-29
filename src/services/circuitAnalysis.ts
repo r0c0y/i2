@@ -633,7 +633,7 @@ export function detectProtocol(channels: import('../types').WaveformChannel[]): 
       findings.push(`CS active-low: VLow=${cs.vLow.toFixed(2)}V, VHigh=${cs.vHigh.toFixed(2)}V`)
       // Check clock duty cycle
       if (clk.dutyCycle < 0.45 || clk.dutyCycle > 0.55) {
-        findings.push(`⚠ CLK duty cycle ${(clk.dutyCycle*100).toFixed(1)}% — should be ~50%`)
+        findings.push(`CLK duty cycle ${(clk.dutyCycle*100).toFixed(1)}% — should be ~50%`)
       }
       return { protocol: 'SPI', confidence: 0.8, findings, timing }
     }

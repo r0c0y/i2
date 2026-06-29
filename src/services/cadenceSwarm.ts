@@ -182,7 +182,7 @@ export async function runSwarmInspection(
   // Query living knowledge graph for relevant past defect patterns
   const recentGraph = queryKnowledgeGraph('')
   if (recentGraph.length > 0) {
-    addLog('Knowledge Graph', 'system', `🧠 ${recentGraph.length} past facts loaded for agent context`, 'info')
+    addLog('Knowledge Graph', 'system', `${recentGraph.length} past facts loaded for agent context`, 'info')
   }
   onProgress({ gridState: gridState.map(row => [...row]), logs, telemetry })
 
@@ -223,7 +223,7 @@ export async function runSwarmInspection(
         addLog(
           `Inspector-${r}-${c}`,
           'inspector',
-          `🚨 Defect detected in cell [${r}, ${c}]: ${foundDefect.defect.description}`,
+          `Defect detected in cell [${r}, ${c}]: ${foundDefect.defect.description}`,
           'warning',
         )
       } else {
@@ -235,7 +235,7 @@ export async function runSwarmInspection(
         addLog(
           `Area Inspector ${r * 10 + c + 1}`,
           'inspector',
-          `✓ Completed scan of zone ${r}-${c}.`,
+          `Completed scan of zone ${r}-${c}.`,
           'info',
         )
       }
@@ -303,7 +303,7 @@ export async function runSwarmInspection(
     const actionKey = pipelineResult.alert.actionTaken.replace(/[^a-zA-Z0-9\s]/g, '').split(' ').slice(0, 4).join('_')
     addKnowledgeEdge(causeKey, 'resolved_by', fixKey, 'agent_consensus')
     if (actionKey) addKnowledgeEdge(actionKey, 'triggered_by', causeKey, 'agent_consensus')
-    addLog('Knowledge Graph', 'system', `🧠 ${graphAdditions.length} new facts written from swarm consensus`, 'success')
+    addLog('Knowledge Graph', 'system', `${graphAdditions.length} new facts written from swarm consensus`, 'success')
 
     addLog(
       'Operations Director',
@@ -328,13 +328,13 @@ export async function runSwarmInspection(
       const tc = pipelineResult.alert.toolCalls[idx]
       
       if (tc.name === 'stop_line') {
-        addLog('Line Controller', 'dispatcher', `🛑 STOPPING assembly line. Cause: ${tc.arguments.reason}`, 'error')
+        addLog('Line Controller', 'dispatcher', `STOPPING assembly line. Cause: ${tc.arguments.reason}`, 'error')
       } else if (tc.name === 'alert_supervisor') {
-        addLog('Alert Dispatcher', 'dispatcher', `📲 Alerting supervisor: "${tc.arguments.message}"`, 'warning')
+        addLog('Alert Dispatcher', 'dispatcher', `Alerting supervisor: "${tc.arguments.message}"`, 'warning')
       } else if (tc.name === 'quarantine_batch') {
-        addLog('Inventory Manager', 'dispatcher', `📦 Quarantining batch: ${tc.arguments.batchId}`, 'warning')
+        addLog('Inventory Manager', 'dispatcher', `Quarantining batch: ${tc.arguments.batchId}`, 'warning')
       } else {
-        addLog('Audit Archivist', 'dispatcher', `✍ Logging tool execution: ${tc.name}`, 'info')
+        addLog('Audit Archivist', 'dispatcher', `Logging tool execution: ${tc.name}`, 'info')
       }
       onProgress({ gridState, logs: [...logs], telemetry: { ...telemetry } })
       await new Promise(res => setTimeout(res, 200))

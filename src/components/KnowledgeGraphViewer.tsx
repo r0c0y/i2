@@ -386,7 +386,7 @@ export function KnowledgeGraphViewer({
         style={{ display: 'block', width: '100%', height: '100%' }}
       />
       <div className="graph-instructions" style={{ position: 'absolute', bottom: '6px', left: '8px', fontSize: '8px', color: 'var(--text-dim)', pointerEvents: 'none', fontFamily: 'JetBrains Mono, monospace' }}>
-        🖱️ Drag nodes to organize • Hover to highlight semantic relationships
+        Drag nodes to organize • Hover to highlight semantic relationships
       </div>
     </div>
   )

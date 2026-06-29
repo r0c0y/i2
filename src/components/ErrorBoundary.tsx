@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div style={{
             width: '3.5rem', height: '3.5rem', borderRadius: '1rem', display: 'grid', placeItems: 'center',
             background: 'rgba(248, 113, 113, 0.12)', color: '#f87171', marginBottom: '1rem',
-          }}>⚠</div>
+          }}>!</div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem' }}>Something went wrong</h2>
           <p style={{ fontSize: '0.875rem', color: '#888', margin: '0 0 1rem', maxWidth: '28rem' }}>
             {this.state.error?.message || 'An unexpected error occurred'}

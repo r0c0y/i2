@@ -510,28 +510,24 @@ function App() {
                   <>
                     <button className="circuit-card circuit-automotive" onClick={() => { autoShowDefect.current = true; handleSelectCircuit(c('bldc-motor')); }}>
                       <span className="circuit-industry-tag industry-automotive">AUTOMOTIVE</span>
-                      <span style={{ fontSize: '18px' }}>🚗</span>
                       <span className="circuit-card-name">BLDC Motor Shoot-Through</span>
                       <span className="circuit-card-desc">Dead-time violation melts gate driver — $2,400 repair per ECU</span>
                       <span className="circuit-usecase">Agent detects: Vgs ringing &gt;20V, cross-conduction at commutation</span>
                     </button>
                     <button className="circuit-card circuit-medical" onClick={() => { autoShowDefect.current = true; handleSelectCircuit(c('ecg-frontend')); }}>
                       <span className="circuit-industry-tag industry-medical">MEDICAL</span>
-                      <span style={{ fontSize: '18px' }}>🏥</span>
                       <span className="circuit-card-name">ECG CMRR Degradation</span>
                       <span className="circuit-card-desc">RFI filter drift makes ECG unreadable — misdiagnosis risk</span>
                       <span className="circuit-usecase">Agent detects: CMRR drop 100dB→72dB, 50Hz mains bleed-through</span>
                     </button>
                     <button className="circuit-card circuit-power" onClick={() => { autoShowDefect.current = true; handleSelectCircuit(c('buck-converter')); }}>
                       <span className="circuit-industry-tag industry-power">POWER</span>
-                      <span style={{ fontSize: '18px' }}>⚡</span>
                       <span className="circuit-card-name">Buck Converter Saturation</span>
                       <span className="circuit-card-desc">Aged inductor doubles ripple — 5V rail droops to 4.2V, logic glitches</span>
                       <span className="circuit-usecase">Agent detects: 200mV p-p ripple, subharmonic oscillation at 8kHz</span>
                     </button>
                     <button className="circuit-card circuit-industrial" onClick={() => { autoShowDefect.current = true; handleSelectCircuit(c('plc-input')); }}>
                       <span className="circuit-industry-tag industry-industrial">INDUSTRIAL</span>
-                      <span style={{ fontSize: '18px' }}>🏭</span>
                       <span className="circuit-card-name">PLC Optocoupler Failure</span>
                       <span className="circuit-card-desc">CTR drops 100%→30% after 50k hours — machine loses all sensors</span>
                       <span className="circuit-usecase">Agent detects: logic level never reaches 2.5V threshold, stuck low</span>
@@ -852,7 +848,7 @@ function App() {
                             style={{ color: '#34d399', borderColor: 'rgba(52,211,153,0.2)' }}
                             onClick={() => handleDownloadSampleCSV(true)}
                           >
-                            <GlassIcon name="download" size={10} variant="green" style={{ padding: '1px' }} /> CSV ✓
+                            <GlassIcon name="download" size={10} variant="green" style={{ padding: '1px' }} /> CSV Pass
                           </button>
                           <button
                             id="btn-dl-csv-mismatch"
@@ -860,7 +856,7 @@ function App() {
                             style={{ color: '#f87171', borderColor: 'rgba(248,113,113,0.2)' }}
                             onClick={() => handleDownloadSampleCSV(false)}
                           >
-                            <GlassIcon name="download" size={10} variant="red" style={{ padding: '1px' }} /> CSV ✗
+                            <GlassIcon name="download" size={10} variant="red" style={{ padding: '1px' }} /> CSV Fail
                           </button>
                         </>
                       )}

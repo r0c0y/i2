@@ -272,7 +272,7 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
   const filteredLogs = swarmLogs.filter(log => {
     if (logFilter === 'all') return true
     if (logFilter === 'debates') return log.role === 'specialist'
-    if (logFilter === 'actions') return log.role === 'dispatcher' || log.text.includes('🔧') || log.text.includes('🛑') || log.text.includes('📲')
+    if (logFilter === 'actions') return log.role === 'dispatcher' || log.text.includes('TOOL') || log.text.includes('STOP') || log.text.includes('ALERT')
     if (logFilter === 'system') return log.role === 'lead'
     return true
   })
@@ -315,8 +315,8 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
         <div className="settings-overlay">
           <div className="settings-drawer">
             <div className="drawer-header">
-              <h4>⚙️ Swarm Controller Settings</h4>
-              <button className="close-btn" onClick={() => setShowSettings(false)}>✕</button>
+              <h4>Swarm Controller Settings</h4>
+              <button className="close-btn" onClick={() => setShowSettings(false)}>Close</button>
             </div>
             <div className="drawer-body">
               <div className="settings-row">
@@ -396,25 +396,21 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
       {/* Real-World Impact Banner */}
       <div className="realworld-banner">
         <div className="rw-sector">
-          <span className="rw-icon">🚗</span>
           <span>Automotive ECU</span>
           <span className="rw-fail">~$2,400/repair</span>
         </div>
         <div className="rw-divider" />
         <div className="rw-sector">
-          <span className="rw-icon">🏥</span>
           <span>Medical Patient Monitor</span>
           <span className="rw-fail">Patient safety risk</span>
         </div>
         <div className="rw-divider" />
         <div className="rw-sector">
-          <span className="rw-icon">🏭</span>
           <span>Industrial PLC</span>
           <span className="rw-fail">$50k/hr downtime</span>
         </div>
         <div className="rw-divider" />
         <div className="rw-sector">
-          <span className="rw-icon">⚡</span>
           <span>Power Supply Module</span>
           <span className="rw-fail">Latent field failure</span>
         </div>
@@ -424,7 +420,7 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
       {/* Controls */}
       <div className="cadence-controls">
         <button className="cadence-btn primary" onClick={() => imageInputRef.current?.click()} disabled={isProcessing}>
-          📷 Upload PCB Image
+          Upload PCB Image
         </button>
         <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
         <button
@@ -432,14 +428,14 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
           onClick={() => setDemoMode(demoMode === 'gallery' ? null : 'gallery')}
           disabled={isProcessing}
         >
-          {demoMode === 'gallery' ? '✕ Close Gallery' : '🖼 Demo Gallery'}
+          {demoMode === 'gallery' ? 'Close Gallery' : 'Demo Gallery'}
         </button>
         <button
           className="cadence-btn"
           onClick={streamIntervalRef.current ? stopStream : startStream}
           disabled={isProcessing}
         >
-          {streamIntervalRef.current ? '⏹ Stop Stream' : '▶ Auto Stream'}
+          {streamIntervalRef.current ? 'Stop Stream' : 'Auto Stream'}
         </button>
         <button 
           className="cadence-btn"
@@ -450,15 +446,15 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
           }}
           disabled={isProcessing}
         >
-          ⚡ CircuitScope
+          CircuitScope
         </button>
         <button className="cadence-btn" onClick={() => setShowSettings(true)} disabled={isProcessing}>
-          ⚙️ Settings
+          Settings
         </button>
 
         {latestResult && (
           <button className="cadence-btn" onClick={handleDownloadReport}>
-            ⬇ Export Swarm Report
+            Export Swarm Report
           </button>
         )}
         
@@ -492,13 +488,13 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
       {demoMode === 'gallery' && (
         <div className="cadence-gallery">
           <div className="gallery-header">
-            <h4>📸 Demo Dataset — Real PCB Images</h4>
+            <h4>Demo Dataset — Real PCB Images</h4>
             <a href="/demo-pcb.zip" download className="cadence-btn download-btn">
-              ⬇ Download Dataset (ZIP)
+              Download Dataset (ZIP)
             </a>
           </div>
           <div className="gallery-section">
-            <h4>✅ Good PCBs — Reference Samples</h4>
+            <h4>Good PCBs — Reference Samples</h4>
             <div className="gallery-grid">
               {DEMO_IMAGES.good.map((img, i) => (
                 <button
@@ -515,7 +511,7 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
             </div>
           </div>
           <div className="gallery-section">
-            <h4>❌ Defective PCBs — Known Defects</h4>
+            <h4>Defective PCBs — Known Defects</h4>
             <div className="gallery-grid">
               {DEMO_IMAGES.defective.map((img, i) => (
                 <button
@@ -539,7 +535,7 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
         {/* Left Panel: Dynamic Inspection Feed & 10x10 Scan Grid Overlay */}
         <div className="cadence-panel image-panel">
           <div className="panel-header">
-            <h3>🔍 Live Swarm Camera Feed</h3>
+            <h3>Live Swarm Camera Feed</h3>
             {latestResult && (
               <span className="score-badge" data-score={latestResult.inspection.overallScore}>
                 Score: {latestResult.inspection.overallScore.toFixed(0)}/100
@@ -655,8 +651,8 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
             {selectedCell && (
               <div className="cell-inspector-panel">
                 <div className="inspector-card-header">
-                  <h5>📍 Grid Node [Row {selectedCell.row}, Col {selectedCell.col}]</h5>
-                  <button className="inspector-close" onClick={() => setSelectedCell(null)}>✕</button>
+                  <h5>Grid Node [Row {selectedCell.row}, Col {selectedCell.col}]</h5>
+                  <button className="inspector-close" onClick={() => setSelectedCell(null)}>Close</button>
                 </div>
                 <div className="inspector-card-body">
                   <div className="meta">
@@ -665,10 +661,10 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
                   </div>
                   <div className="actions">
                     <button className="cadence-btn clear-btn" onClick={() => handleOverrideCell('passed')}>
-                      ✓ Force Clear (Mark Clean)
+                      Force Clear
                     </button>
                     <button className="cadence-btn fault-btn" onClick={() => handleOverrideCell('defect')}>
-                      ❌ Force Anomaly (Mark Defect)
+                      Force Anomaly
                     </button>
                   </div>
                 </div>
@@ -766,7 +762,7 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
                           }
                         }}
                       >
-                        ⚡ Run Electrical Probe Test in CircuitScope
+                        Run Electrical Probe Test in CircuitScope
                       </button>
                     </div>
                   </div>
