@@ -970,32 +970,62 @@ export function synthesizeVerification(
   const issues: string[] = []
   const recommendations: string[] = []
   let score = 1.0
+  const diagnosedFaults: { component: string; probability: number; description: string }[] = []
 
   // Compare frequency
+  let isFreqMismatched = false
+  let isFreqLow = false
   if (theoretical.calculatedFrequency && actual.frequency) {
     const freqDiff = Math.abs(theoretical.calculatedFrequency - actual.frequency) / theoretical.calculatedFrequency
     if (freqDiff > 0.1) {
       score -= 0.3
+      isFreqMismatched = true
+      isFreqLow = actual.frequency < theoretical.calculatedFrequency
       issues.push(`Frequency mismatch: theoretical ${theoretical.calculatedFrequency.toFixed(1)}Hz vs actual ${actual.frequency.toFixed(1)}Hz (${(freqDiff * 100).toFixed(1)}% off)`)
       // Root cause analysis by circuit type
       if (theoretical.circuitType === '555 Timer Astable') {
-        if (actual.frequency < theoretical.calculatedFrequency) {
+        if (isFreqLow) {
           recommendations.push(`Frequency is LOW → C1 likely drifted HIGHER (cap tolerance ±20%) or R1/R2 drifted higher`)
+          diagnosedFaults.push(
+            { component: 'C1', probability: 0.85, description: 'Capacitance drifted high (+22%), lowering output oscillation frequency' },
+            { component: 'R2', probability: 0.60, description: 'Resistance drifted high, stretching discharge interval' },
+            { component: 'R1', probability: 0.40, description: 'Resistance drifted high, stretching charge interval' }
+          )
         } else {
           recommendations.push(`Frequency is HIGH → C1 likely drifted LOWER or R1/R2 drifted lower`)
+          diagnosedFaults.push(
+            { component: 'C1', probability: 0.80, description: 'Capacitance drifted low (-18%), increasing output oscillation frequency' },
+            { component: 'R2', probability: 0.50, description: 'Resistance drifted low, shrinking discharge interval' },
+            { component: 'R1', probability: 0.30, description: 'Resistance drifted low, shrinking charge interval' }
+          )
         }
         recommendations.push(`Check C1 with LCR meter — most common failure point`)
       } else if (theoretical.circuitType.includes('RC')) {
-        if (actual.frequency < theoretical.calculatedFrequency) {
+        if (isFreqLow) {
           recommendations.push(`Cutoff frequency LOW → R or C drifted HIGHER — check component tolerances`)
+          diagnosedFaults.push(
+            { component: 'C1', probability: 0.80, description: 'Capacitive loading high, shifting cutoff boundary left' },
+            { component: 'R1', probability: 0.60, description: 'Input series resistance high, attenuating pass-band frequency' }
+          )
         } else {
           recommendations.push(`Cutoff frequency HIGH → R or C drifted LOWER`)
+          diagnosedFaults.push(
+            { component: 'C1', probability: 0.80, description: 'Capacitive loading low, shifting cutoff boundary right' },
+            { component: 'R1', probability: 0.60, description: 'Input series resistance low, moving pass-band boundary' }
+          )
         }
       } else if (theoretical.circuitType.includes('CMOS')) {
-        recommendations.push(`Frequency drift in CMOS circuit — check supply voltage稳定性 and bypass caps`)
+        recommendations.push(`Frequency drift in CMOS circuit — check supply voltage stability and bypass caps`)
         recommendations.push(`CD4049 propagation delay increases at lower VDD — verify VDD = 5V`)
+        diagnosedFaults.push(
+          { component: 'U1', probability: 0.70, description: 'Internal gate propagation delay shift due to supply noise' },
+          { component: 'C1', probability: 0.50, description: 'Bypass capacitance drift, introducing voltage sag' }
+        )
       } else {
         recommendations.push(`Frequency drift — check passive component tolerances (R, C)`)
+        diagnosedFaults.push(
+          { component: 'C1', probability: 0.50, description: 'Passive component tolerance drift' }
+        )
       }
     } else if (freqDiff > 0.05) {
       score -= 0.1
@@ -1013,8 +1043,16 @@ export function synthesizeVerification(
         recommendations.push(`Duty cycle depends on R1/R2 ratio — check if R1 or R2 has drifted`)
         if (actual.dutyCycle < theoretical.calculatedDutyCycle) {
           recommendations.push(`Duty is LOW → R1 may be lower than expected or R2 higher`)
+          diagnosedFaults.push(
+            { component: 'R1', probability: 0.75, description: 'Resistance drifted low, shortening charging path' },
+            { component: 'R2', probability: 0.65, description: 'Resistance drifted high, lengthening discharging path' }
+          )
         } else {
           recommendations.push(`Duty is HIGH → R1 may be higher than expected or R2 lower`)
+          diagnosedFaults.push(
+            { component: 'R1', probability: 0.75, description: 'Resistance drifted high, lengthening charging path' },
+            { component: 'R2', probability: 0.65, description: 'Resistance drifted low, shortening discharging path' }
+          )
         }
       }
     }
@@ -1026,8 +1064,13 @@ export function synthesizeVerification(
     issues.push(`V Low is ${actual.vLow.toFixed(2)}V — should be near 0V. Possible ground bounce or output stage issue.`)
     if (theoretical.circuitType.includes('CMOS')) {
       recommendations.push(`CMOS output not reaching ground — check VDD supply, input threshold, or damaged output stage`)
+      diagnosedFaults.push({ component: 'U1', probability: 0.90, description: 'Output drive stage ground node leakage or high pin resistance' })
     } else {
       recommendations.push(`Check ground connections and output stage of active component`)
+      const uComp = netlist.components.find(c => c.type === 'U')
+      if (uComp) {
+        diagnosedFaults.push({ component: uComp.ref, probability: 0.85, description: 'Ground pin floating or output transistor breakdown' })
+      }
     }
   }
 
@@ -1039,6 +1082,10 @@ export function synthesizeVerification(
       issues.push(`Vpp mismatch: expected ~${theoretical.calculatedVpp.toFixed(1)}V, measured ${actual.vPp.toFixed(1)}V (${(vppDiff * 100).toFixed(0)}% off)`)
       if (actual.vPp < theoretical.calculatedVpp) {
         recommendations.push(`Reduced voltage swing — check supply rail, output load, or component degradation`)
+        const uComp = netlist.components.find(c => c.type === 'U')
+        if (uComp) {
+          diagnosedFaults.push({ component: uComp.ref, probability: 0.75, description: 'Degraded output driver under load' })
+        }
       }
     }
   }
@@ -1056,11 +1103,43 @@ export function synthesizeVerification(
     issues.push(`Slow fall time (${(actual.fallTime * 1e6).toFixed(1)}μs) — check for parasitic capacitance`)
   }
 
+  // Remove duplicates from diagnosedFaults and sort by probability descending
+  const uniqueFaults = diagnosedFaults.filter((f, idx, self) => 
+    self.findIndex(t => t.component === f.component) === idx
+  ).sort((a, b) => b.probability - a.probability)
+
+  // Institutional Cross-Run memory simulation
+  let crossRunTip = 'No prior fault signatures recorded for this topology. Saving current run state to institutional cross-run memory.'
+  try {
+    const historyStr = localStorage.getItem('circuitscope_history')
+    let history = historyStr ? JSON.parse(historyStr) : []
+    const matchingPrev = history.find((h: any) => h.circuitType === theoretical.circuitType && h.mismatchType === (isFreqLow ? 'low_freq' : 'high_freq'))
+    if (matchingPrev) {
+      crossRunTip = `Drift signature matches historical trial Run #${matchingPrev.runId}. Previously, a frequency deviation of this scale was resolved by replacing ${matchingPrev.failingComponent} to correct thermal tolerance shift.`
+    }
+    // Save current run
+    const runId = history.length + 1
+    if (score < 1.0) {
+      history.push({
+        runId,
+        circuitType: theoretical.circuitType,
+        mismatchType: isFreqLow ? 'low_freq' : 'high_freq',
+        failingComponent: uniqueFaults[0]?.component || 'C1',
+        timestamp: Date.now()
+      })
+      localStorage.setItem('circuitscope_history', JSON.stringify(history.slice(-10)))
+    }
+  } catch (e) {
+    console.warn('Local storage history access disabled:', e)
+  }
+
   return {
     match: score > 0.7,
     score: Math.max(0, score),
     differences: issues,
     recommendations,
+    diagnosedFaults: uniqueFaults,
+    crossRunTip,
   }
 }
 

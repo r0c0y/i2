@@ -67,6 +67,8 @@ export interface VerificationResult {
   score: number
   differences: string[]
   recommendations: string[]
+  diagnosedFaults?: { component: string; probability: number; description: string }[]
+  crossRunTip?: string
 }
 
 export type AnalysisStep =

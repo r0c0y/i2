@@ -1,16 +1,78 @@
 /* ══════════════════════════════════════════════════════════════
-   Cadence Dashboard v2.5 — Swarm Control Center
+   Cadence — Brand Design System
+   Tokens scoped to .cadence-dashboard so they never leak
+   into CircuitScope. All values in OKLCH for perceptual consistency.
+   Author: Cadence Brand v1.0
    ══════════════════════════════════════════════════════════════ */
 
 .cadence-dashboard {
+  /* ── Canvas & Surface ─────────────────────────────── */
+  --cd-background:    oklch(0.165 0.022 285);   /* near-black violet */
+  --cd-surface:       oklch(0.135 0.02  285);   /* recessed panels */
+  --cd-card:          oklch(0.21  0.028 285);   /* cards, viewports */
+  --cd-foreground:    oklch(0.97  0.008 285);   /* primary text */
+  --cd-muted:         oklch(0.76  0.022 285);   /* secondary text */
+  --cd-dim:           oklch(0.5   0.018 285);   /* tertiary / labels */
+
+  /* ── Brand Colors ─────────────────────────────────── */
+  --cd-primary:       oklch(0.64  0.2   300);   /* violet */
+  --cd-primary-fg:    oklch(0.99  0.005 300);   /* text on violet */
+  --cd-accent:        oklch(0.82  0.16  162);   /* emerald — positive */
+  --cd-border:        oklch(0.33  0.03  285);   /* hairlines */
+  --cd-ring:          oklch(0.7   0.18  300);   /* focus ring */
+
+  /* ── Severity ─────────────────────────────────────── */
+  --cd-critical:      oklch(0.66  0.21  22);    /* red — stop the line */
+  --cd-major:         oklch(0.8   0.16  75);    /* amber — rework/flag */
+  --cd-minor:         oklch(0.82  0.16  162);   /* emerald — log only */
+
+  /* ── Gradients ────────────────────────────────────── */
+  --cd-gradient-brand: linear-gradient(135deg, oklch(0.64 0.2 300), oklch(0.75 0.18 162));
+  --cd-gradient-glow:  radial-gradient(circle at 50% 0%, oklch(0.64 0.2 300 / 0.18), transparent 65%);
+
+  /* ── Semantic aliases → existing var() references ── */
+  /* These reroute the old App tokens to the Cadence system */
+  --bg:            var(--cd-background);
+  --bg-elevated:   var(--cd-card);
+  --bg-surface:    var(--cd-surface);
+  --bg-hover:      oklch(0.24 0.03 285);
+  --border:        var(--cd-border);
+  --border-bright: oklch(0.42 0.04 285);
+  --text:          var(--cd-foreground);
+  --text-muted:    var(--cd-muted);
+  --text-dim:      var(--cd-dim);
+  --accent:        var(--cd-primary);
+  --accent-bright: oklch(0.78 0.16 300);
+  --accent-dim:    oklch(0.64 0.2 300 / 0.1);
+  --accent-glow:   oklch(0.64 0.2 300 / 0.35);
+  --green:         var(--cd-accent);
+  --green-glow:    oklch(0.82 0.16 162 / 0.35);
+  --green-dim:     oklch(0.82 0.16 162 / 0.08);
+  --red:           var(--cd-critical);
+  --red-dim:       oklch(0.66 0.21 22 / 0.08);
+  --yellow:        var(--cd-major);
+  --yellow-dim:    oklch(0.8 0.16 75 / 0.08);
+  --blue:          oklch(0.7 0.15 255);
+  --blue-dim:      oklch(0.7 0.15 255 / 0.08);
+  --orange:        oklch(0.75 0.19 50);
+
+  /* ── Typography ────────────────────────────────────── */
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ── Layout ────────────────────────────────────────── */
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 46px); /* Align with main view mode toggle height */
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Inter', sans-serif;
+  height: calc(100vh - 46px);
+  background: var(--cd-background);
+  color: var(--cd-foreground);
   overflow: hidden;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Cadence Dashboard v2.5 — Swarm Control Center
+   ══════════════════════════════════════════════════════════════ */
+
+
 
 /* ── Status Bar ── */
 .cadence-status-bar {
@@ -869,3 +931,162 @@
   }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   Cadence Brand Overrides
+   Applied on top of legacy rules. No selectors changed upstream.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Status bar: brand-top hairline ─────────────────── */
+.cadence-dashboard .cadence-status-bar {
+  background: linear-gradient(90deg, oklch(0.21 0.028 285) 0%, oklch(0.19 0.025 285) 100%);
+  border-bottom: 1px solid var(--cd-border);
+  box-shadow: 0 1px 0 oklch(0.64 0.2 300 / 0.12);
+}
+
+/* ── Panel headers: JetBrains Mono eyebrows ──────────── */
+.cadence-dashboard .cadence-panel .panel-header h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cd-muted);
+}
+
+/* ── Pill-shaped primary / secondary buttons ─────────── */
+.cadence-dashboard .cadence-btn {
+  border-radius: 9999px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 7px 18px;
+  border-color: var(--cd-border);
+  background: oklch(0.21 0.028 285);
+  color: var(--cd-muted);
+  transition: all 0.18s ease;
+}
+.cadence-dashboard .cadence-btn:hover {
+  border-color: oklch(0.64 0.2 300 / 0.5);
+  background: oklch(0.24 0.03 285);
+  color: var(--cd-foreground);
+}
+.cadence-dashboard .cadence-btn.primary {
+  background: var(--cd-primary);
+  border-color: var(--cd-primary);
+  color: var(--cd-primary-fg);
+  box-shadow: 0 4px 16px oklch(0.64 0.2 300 / 0.3);
+}
+.cadence-dashboard .cadence-btn.primary:hover {
+  background: oklch(0.68 0.22 300);
+  box-shadow: 0 6px 24px oklch(0.64 0.2 300 / 0.45);
+  transform: scale(1.03);
+}
+.cadence-dashboard .cadence-btn:active { transform: scale(0.97); }
+
+/* ── Swarm tab active: emerald underline ─────────────── */
+.cadence-dashboard .swarm-tab-btn.active {
+  color: var(--cd-accent);
+  background: oklch(0.82 0.16 162 / 0.07);
+  box-shadow: none;
+}
+
+/* ── Score badges ─────────────────────────────────────── */
+.cadence-dashboard .score-badge[data-score^="100"],
+.cadence-dashboard .score-badge[data-score^="9"] {
+  color: var(--cd-accent);
+  border-color: oklch(0.82 0.16 162 / 0.3);
+}
+.cadence-dashboard .score-badge[data-score^="8"],
+.cadence-dashboard .score-badge[data-score^="7"] {
+  color: var(--cd-major);
+  border-color: oklch(0.8 0.16 75 / 0.3);
+}
+.cadence-dashboard .score-badge[data-score^="6"],
+.cadence-dashboard .score-badge[data-score^="5"],
+.cadence-dashboard .score-badge[data-score^="4"],
+.cadence-dashboard .score-badge[data-score^="3"],
+.cadence-dashboard .score-badge[data-score^="2"],
+.cadence-dashboard .score-badge[data-score^="1"],
+.cadence-dashboard .score-badge[data-score^="0"] {
+  color: var(--cd-critical);
+  border-color: oklch(0.66 0.21 22 / 0.3);
+}
+
+/* ── Defect markers: exact severity tokens ───────────── */
+.cadence-dashboard .defect-marker.critical { border-color: var(--cd-critical); background: oklch(0.66 0.21 22 / 0.2); }
+.cadence-dashboard .defect-marker.major    { border-color: var(--cd-major);    background: oklch(0.8  0.16 75  / 0.2); }
+.cadence-dashboard .defect-marker.minor,
+.cadence-dashboard .defect-marker.cosmetic { border-color: var(--cd-minor);    background: oklch(0.82 0.16 162 / 0.12); }
+
+/* ── Action dispatch severity ────────────────────────── */
+.cadence-dashboard .action-dispatch-summary.critical { border-left-color: var(--cd-critical); background: oklch(0.66 0.21 22  / 0.04); }
+.cadence-dashboard .action-dispatch-summary.major    { border-left-color: var(--cd-major);    background: oklch(0.8  0.16 75  / 0.04); }
+.cadence-dashboard .action-dispatch-summary.minor    { border-left-color: var(--cd-minor);    background: oklch(0.82 0.16 162 / 0.04); }
+
+/* ── Telemetry cards ─────────────────────────────────── */
+.cadence-dashboard .telemetry-card.cerebras { border-top-color: var(--cd-accent); }
+.cadence-dashboard .telemetry-card.cerebras .time-val {
+  background: var(--cd-gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.cadence-dashboard .telemetry-card.gpu { border-top-color: var(--cd-critical); }
+.cadence-dashboard .telemetry-card.gpu .time-val { color: var(--cd-critical); }
+
+/* ── History strip ───────────────────────────────────── */
+.cadence-dashboard .history-item.clean          { border-color: oklch(0.82 0.16 162 / 0.3); }
+.cadence-dashboard .history-item.defective      { border-color: oklch(0.66 0.21 22  / 0.3); }
+.cadence-dashboard .history-item.clean     .history-score { color: var(--cd-accent); }
+.cadence-dashboard .history-item.defective .history-score { color: var(--cd-critical); }
+
+/* ── Knowledge graph ─────────────────────────────────── */
+.cadence-dashboard .edge-origin[data-origin="agent_consensus"] { background: oklch(0.64 0.2 300 / 0.12); color: oklch(0.78 0.16 300); }
+.cadence-dashboard .edge-node.target { background: oklch(0.64 0.2 300 / 0.1); color: oklch(0.78 0.16 300); }
+
+/* ── Filter pills ────────────────────────────────────── */
+.cadence-dashboard .filter-pill.active {
+  border-color: var(--cd-primary);
+  color: var(--cd-primary-fg);
+  background: oklch(0.64 0.2 300 / 0.12);
+}
+
+/* ── Settings modal ──────────────────────────────────── */
+.cadence-dashboard .settings-drawer { border-radius: 24px; background: var(--cd-card); border-color: var(--cd-border); }
+
+/* ── Cell inspector ring ─────────────────────────────── */
+.cadence-dashboard .cell-inspector-panel {
+  border-color: oklch(0.64 0.2 300 / 0.4);
+  box-shadow: 0 4px 16px oklch(0.64 0.2 300 / 0.08);
+}
+
+/* ── Grid states: violet = scanning, critical = defect ─ */
+.cadence-dashboard .grid-cell.scanning   { border-color: var(--cd-primary);   background: oklch(0.64 0.2 300 / 0.08); box-shadow: inset 0 0 8px oklch(0.64 0.2 300 / 0.2); }
+.cadence-dashboard .grid-cell.defect     { border-color: var(--cd-critical);  background: oklch(0.66 0.21 22  / 0.18); }
+.cadence-dashboard .matrix-cell.scanning { background: oklch(0.64 0.2 300 / 0.1);  border-color: var(--cd-primary);  box-shadow: 0 0 4px oklch(0.64 0.2 300 / 0.3); }
+.cadence-dashboard .matrix-cell.passed   { background: oklch(0.82 0.16 162 / 0.08); border-color: oklch(0.82 0.16 162 / 0.3); }
+.cadence-dashboard .matrix-cell.defect   { background: oklch(0.66 0.21 22  / 0.08); border-color: var(--cd-critical); box-shadow: 0 0 6px oklch(0.66 0.21 22 / 0.4); }
+.cadence-dashboard .legend-dot.scanning  { background: var(--cd-primary); }
+.cadence-dashboard .legend-dot.passed    { background: var(--cd-accent); }
+.cadence-dashboard .legend-dot.defect    { background: var(--cd-critical); }
+
+/* ── Stat pills: emerald = positive metric ───────────── */
+.cadence-dashboard .stat-pill.timing  .stat-value { color: var(--cd-accent); }
+.cadence-dashboard .stat-pill.defects .stat-value { color: var(--cd-critical); }
+
+/* ── Focus rings ─────────────────────────────────────── */
+.cadence-dashboard *:focus-visible {
+  outline: 2px solid var(--cd-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Reduced motion (WCAG 2.1 §2.3.3) ───────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .cadence-dashboard *,
+  .cadence-dashboard *::before,
+  .cadence-dashboard *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -64,6 +64,14 @@ function App() {
   const [netContext, setNetContext] = useState<NetContext | null>(null);
   const [protocolResult, setProtocolResult] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'analysis' | 'bringup' | 'context'>('analysis');
+  
+  // Collaborative Agent Swarm states
+  const [agentChatLines, setAgentChatLines] = useState<{ sender: string; text: string; role: 'vision' | 'theory' | 'verification' }[]>([]);
+  const [agentStatuses, setAgentStatuses] = useState<('idle' | 'active' | 'done')[]>(['idle', 'idle', 'idle']);
+
+  const addAgentLog = useCallback((sender: string, text: string, role: 'vision' | 'theory' | 'verification') => {
+    setAgentChatLines(prev => [...prev, { sender, text, role }]);
+  }, []);
   const analysisStartTime = useRef(0);
   const kicadInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -93,37 +101,50 @@ function App() {
   const runAgentPipeline = useCallback(async (inputNetlist: Netlist) => {
     setIsProcessing(true);
     setStage('analyzing');
+    setAgentChatLines([]);
+    setAgentStatuses(['active', 'idle', 'idle']);
     analysisStartTime.current = Date.now();
 
-    // Agent 1: Math Analyst — hard formulas (instant, no API)
-    setStatusMsg('Agent 1: Computing theoretical values...');
-    await new Promise(r => setTimeout(r, 200));
+    // Agent 1: Vision Netlist Extractor
+    addAgentLog('Vision Agent', 'Initiating netlist extraction on incoming circuit...', 'vision');
+    await new Promise(r => setTimeout(r, 600));
+    addAgentLog('Vision Agent', `Extraction complete. Detected ${inputNetlist.components.length} SMT components and ${inputNetlist.nets.length} interconnecting nets.`, 'vision');
+    setAgentStatuses(['done', 'active', 'idle']);
+
+    // Agent 2: Theoretical Predictor (Theory Agent)
+    addAgentLog('Theory Agent', 'Calculating mathematical limits & nominals using node equations...', 'theory');
+    await new Promise(r => setTimeout(r, 650));
     const theoretical = computeTheoreticalValues(inputNetlist);
     setAgentResults(prev => ({ ...prev, theoretical }));
 
-    // Generate bring-up checklist
+    // Generate checklist
     const steps = generateBringUpChecklist(inputNetlist);
     setBringUpSteps(steps);
 
-    // LLM Analysis
-    setStatusMsg('Agent 2: LLM analyzing circuit behavior...');
-    await new Promise(r => setTimeout(r, 100));
+    addAgentLog('Theory Agent', `Formula analysis complete: f = ${theoretical.calculatedFrequency ? theoretical.calculatedFrequency.toFixed(1) + 'Hz' : 'N/A'}, Vpp = ${theoretical.calculatedVpp?.toFixed(1)}V.`, 'theory');
+    addAgentLog('Theory Agent', 'Triggering Gemma 4 vision/behavior prediction on Cerebras API...', 'theory');
+    
     const llmAnalysis = await analyzeCircuit(inputNetlist);
 
-    // Merge theoretical + LLM predictions
+    // Merge
     if (theoretical.calculatedFrequency && llmAnalysis.predictedWaveform) {
-      llmAnalysis.predictedWaveform.measurements.frequency = theoretical.calculatedFrequency
-      llmAnalysis.predictedWaveform.measurements.dutyCycle = theoretical.calculatedDutyCycle ?? llmAnalysis.predictedWaveform.measurements.dutyCycle
+      llmAnalysis.predictedWaveform.measurements.frequency = theoretical.calculatedFrequency;
+      llmAnalysis.predictedWaveform.measurements.dutyCycle = theoretical.calculatedDutyCycle ?? llmAnalysis.predictedWaveform.measurements.dutyCycle;
     }
-
     setAnalysis(llmAnalysis);
+
+    addAgentLog('Theory Agent', 'Behavior model loaded. Nominals established.', 'theory');
+    setAgentStatuses(['done', 'done', 'active']);
+
+    // Agent 3: Signal Verification Agent
+    addAgentLog('Verification Agent', 'Awaiting physical oscilloscope telemetry input (CSV/image)...', 'verification');
+
     // Use actual Cerebras API timing if available
-    const cerebrasTiming = getLastCerebrasTiming()
+    const cerebrasTiming = getLastCerebrasTiming();
     setAnalysisTime(cerebrasTiming ? Math.round(cerebrasTiming.total) : Date.now() - analysisStartTime.current);
     setStage('analysis');
     setIsProcessing(false);
-    setStatusMsg('');
-  }, []);
+  }, [addAgentLog]);
 
   // ── Demo Flow ──
 
@@ -308,59 +329,94 @@ function App() {
 
   return (
     <div className="app">
-      {/* View Mode Toggle */}
+      {/* View Mode Toggle Rail */}
       <div className="view-mode-toggle">
-        <button className={`mode-btn ${viewMode === 'cadence' ? 'active' : ''}`} onClick={() => setViewMode('cadence')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-          <GlassIcon name="factory" size={14} variant={viewMode === 'cadence' ? 'purple' : 'gray'} />
+        <button
+          id="mode-cadence"
+          className={`mode-btn ${viewMode === 'cadence' ? 'active' : ''}`}
+          onClick={() => setViewMode('cadence')}
+        >
+          <GlassIcon name="factory" size={13} variant={viewMode === 'cadence' ? 'purple' : 'gray'} />
           Cadence — Assembly Line
         </button>
-        <button className={`mode-btn ${viewMode === 'circuitscope' ? 'active' : ''}`} onClick={() => setViewMode('circuitscope')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-          <GlassIcon name="bolt" size={14} variant={viewMode === 'circuitscope' ? 'purple' : 'gray'} />
+        <button
+          id="mode-circuitscope"
+          className={`mode-btn ${viewMode === 'circuitscope' ? 'active' : ''}`}
+          onClick={() => setViewMode('circuitscope')}
+        >
+          <GlassIcon name="bolt" size={13} variant={viewMode === 'circuitscope' ? 'purple' : 'gray'} />
           CircuitScope — Hardware Debug
         </button>
       </div>
 
+      {/* ── Cadence view ── */}
       {viewMode === 'cadence' && <CadenceDashboard onTriggerProbeTest={handleTriggerProbeTest} />}
 
+      {/* ══ CircuitScope: Stage 1 — Intro / Input ══ */}
       {viewMode === 'circuitscope' && stage === 'intro' && (
         <div className="intro-screen">
           <div className="intro-content">
-            <div className="intro-badge"><span className="badge-dot" />Cerebras × Gemma 4</div>
-            <h1 className="intro-title">
-              Hardware Debugging<br /><span className="accent">in Seconds, Not Days</span>
-            </h1>
-            <p className="intro-subtitle">
-              Upload a KiCad netlist and oscilloscope CSV. Three AI agents compute theoretical values,
-              analyze telemetry, and flag which component is drifting — instantly.
-            </p>
-            <div className="intro-tech-row">
-              <div className="tech-pill">Agent 1: Math Analyst</div>
-              <div className="tech-pill">Agent 2: Waveform Critic</div>
-              <div className="tech-pill">Agent 3: Synthesizer</div>
+            <div className="intro-badge">
+              <span className="badge-dot" />
+              Cerebras × Gemma 4 Hackathon
             </div>
 
-            {/* ── Input Tabs ── */}
+            <h1 className="intro-title">
+              Hardware Debugging<br />
+              <span className="accent">in Seconds, Not Days</span>
+            </h1>
+
+            <p className="intro-subtitle">
+              Upload a KiCad netlist or schematic image. Three AI agents compute
+              theoretical values, analyze your oscilloscope telemetry, and pinpoint
+              which component is drifting — instantly.
+            </p>
+
+            <div className="intro-tech-row">
+              <div className="tech-pill">Vision Agent — OCR &amp; Parse</div>
+              <div className="tech-pill">Theory Agent — Formulaic Math</div>
+              <div className="tech-pill">Verification Agent — Signal Sync</div>
+            </div>
+
+            {/* Input card */}
             <div className="upload-section">
-              <h3 className="upload-heading">Circuit Input</h3>
+              <div className="upload-heading">Circuit Input</div>
+
               <div className="tab-row">
-                <button className={`tab ${schematicTab === 'kicad' ? 'active' : ''}`} onClick={() => setSchematicTab('kicad')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <GlassIcon name="clipboard" size={12} variant="blue" /> KiCad .net
+                <button
+                  id="tab-kicad"
+                  className={`tab ${schematicTab === 'kicad' ? 'active' : ''}`}
+                  onClick={() => setSchematicTab('kicad')}
+                >
+                  KiCad .net
                 </button>
-                <button className={`tab ${schematicTab === 'paste' ? 'active' : ''}`} onClick={() => setSchematicTab('paste')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <GlassIcon name="clipboard" size={12} variant="purple" /> Paste Netlist
+                <button
+                  id="tab-paste"
+                  className={`tab ${schematicTab === 'paste' ? 'active' : ''}`}
+                  onClick={() => setSchematicTab('paste')}
+                >
+                  Paste SPICE
                 </button>
-                <button className={`tab ${schematicTab === 'image' ? 'active' : ''}`} onClick={() => setSchematicTab('image')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <GlassIcon name="camera" size={12} variant="green" /> Schematic Image
+                <button
+                  id="tab-image"
+                  className={`tab ${schematicTab === 'image' ? 'active' : ''}`}
+                  onClick={() => setSchematicTab('image')}
+                >
+                  Schematic Image
                 </button>
-                <button className={`tab ${schematicTab === 'demo' ? 'active' : ''}`} onClick={() => setSchematicTab('demo')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <GlassIcon name="bolt" size={12} variant="yellow" /> Demo
+                <button
+                  id="tab-demo"
+                  className={`tab ${schematicTab === 'demo' ? 'active' : ''}`}
+                  onClick={() => setSchematicTab('demo')}
+                >
+                  Demo Circuits
                 </button>
               </div>
 
               {schematicTab === 'kicad' && (
                 <div className="upload-box" onClick={() => kicadInputRef.current?.click()}>
                   <input ref={kicadInputRef} type="file" accept=".net,.sp,.cir,.spice" onChange={handleKiCadUpload} style={{ display: 'none' }} />
-                  <GlassIcon name="clipboard" size={32} variant="blue" style={{ marginBottom: '8px' }} />
+                  <GlassIcon name="clipboard" size={28} variant="blue" style={{ marginBottom: '6px' }} />
                   <span className="upload-label">Upload KiCad .net File</span>
                   <span className="upload-hint">Ground truth — 100% accurate netlist export</span>
                 </div>
@@ -368,26 +424,45 @@ function App() {
 
               {schematicTab === 'paste' && (
                 <div className="paste-section">
-                  <textarea className="paste-textarea" placeholder={`SPICE format:\nR1 VCC DIS 1k\nR2 DIS THR 10k\nC1 THR GND 100n\nC2 CTRL GND 10n\nU1 VCC GND DIS THR TRI OUT RST CTRL NE555`} value={pasteText} onChange={(e) => { setPasteText(e.target.value); setPasteError(''); }} rows={8} />
+                  <textarea
+                    id="paste-netlist-input"
+                    className="paste-textarea"
+                    placeholder={`SPICE format:\nR1 VCC DIS 1k\nR2 DIS THR 10k\nC1 THR GND 100n\nC2 CTRL GND 10n\nU1 VCC GND DIS THR TRI OUT RST CTRL NE555`}
+                    value={pasteText}
+                    onChange={(e) => { setPasteText(e.target.value); setPasteError(''); }}
+                    rows={7}
+                  />
                   {pasteError && <div className="paste-error">{pasteError}</div>}
-                  <button className="btn-analyze" onClick={handlePasteNetlist} disabled={isProcessing || !pasteText.trim()}>Parse & Analyze</button>
+                  <button
+                    id="btn-parse-analyze"
+                    className="btn-analyze"
+                    onClick={handlePasteNetlist}
+                    disabled={isProcessing || !pasteText.trim()}
+                  >
+                    Parse &amp; Analyze
+                  </button>
                 </div>
               )}
 
               {schematicTab === 'image' && (
                 <div className="upload-box" onClick={() => imageInputRef.current?.click()}>
                   <input ref={imageInputRef} type="file" accept="image/*,.ppm,.bmp,.tiff,.tif" onChange={handleImageUpload} style={{ display: 'none' }} />
-                  <GlassIcon name="camera" size={32} variant="green" style={{ marginBottom: '8px' }} />
+                  <GlassIcon name="camera" size={28} variant="green" style={{ marginBottom: '6px' }} />
                   <span className="upload-label">Upload Schematic Image</span>
-                  <span className="upload-hint">PNG, JPG, BMP, TIFF, PPM</span>
+                  <span className="upload-hint">PNG, JPG, BMP, TIFF — vision model extracts netlist</span>
                 </div>
               )}
 
               {schematicTab === 'demo' && (
                 <div className="circuit-grid">
                   {DEMO_CIRCUITS.map(circuit => (
-                    <button key={circuit.id} className="circuit-card" onClick={() => handleSelectCircuit(circuit)}>
-                      <GlassIcon name={circuit.icon} size={28} variant="purple" style={{ marginBottom: '8px' }} />
+                    <button
+                      key={circuit.id}
+                      id={`circuit-demo-${circuit.id}`}
+                      className="circuit-card"
+                      onClick={() => handleSelectCircuit(circuit)}
+                    >
+                      <GlassIcon name={circuit.icon} size={24} variant="purple" style={{ marginBottom: '4px' }} />
                       <span className="circuit-card-name">{circuit.name}</span>
                       <span className="circuit-card-desc">{circuit.description}</span>
                     </button>
@@ -400,63 +475,138 @@ function App() {
         </div>
       )}
 
-      {viewMode === 'circuitscope' && stage !== 'intro' && currentNetlist && (
+      {/* ══ CircuitScope: Stage 2 — Agent Orchestration Loading ══ */}
+      {viewMode === 'circuitscope' && stage === 'analyzing' && (
+        <div className="orchestration-screen">
+          <div className="orchestration-card">
+            <div className="orbit-ring" />
+            <div className="orchestration-title">Running Agent Swarm</div>
+            <div className="orchestration-subtitle">Three specialists working in sequence</div>
+
+            <div className="agent-progress-list">
+              {(['Vision Agent', 'Theory Agent', 'Verification Agent'] as const).map((name, i) => {
+                const status = agentStatuses[i];
+                return (
+                  <div key={name} className={`agent-progress-row ${status}`}>
+                    <div className="agent-name-tag">
+                      <span className="agent-row-dot" />
+                      {name}
+                    </div>
+                    <span className="agent-status-label">
+                      {status === 'idle' ? 'Queued' : status === 'active' ? 'Running…' : 'Done'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="agent-chat-terminal" ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}>
+              {agentChatLines.length === 0 && (
+                <span style={{ color: 'var(--text-dim)' }}>Initializing pipeline…</span>
+              )}
+              {agentChatLines.map((line, i) => (
+                <div key={i} className={`agent-chat-line ${line.role}`}>
+                  <span className="sender">{line.sender}:</span>
+                  <span>{line.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ CircuitScope: Stage 3 — Analysis Workspace ══ */}
+      {viewMode === 'circuitscope' && stage !== 'intro' && stage !== 'analyzing' && currentNetlist && (
         <div className="demo-layout">
           <header className="demo-header">
             <div className="header-left">
-              <GlassIcon name="bolt" size={14} variant="purple" style={{ marginRight: '6px' }} />
+              <GlassIcon name="bolt" size={13} variant="purple" />
               <span className="logo-text">CircuitScope</span>
               <span className="header-divider">/</span>
-              <span className="header-circuit" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <span className="header-circuit">
                 {selectedCircuit ? (
-                  <>
-                    <GlassIcon name={selectedCircuit.icon} size={14} variant="purple" />
-                    {selectedCircuit.name}
-                  </>
+                  <><GlassIcon name={selectedCircuit.icon} size={13} variant="purple" />{selectedCircuit.name}</>
                 ) : (
-                  <>
-                    <GlassIcon name="camera" size={14} variant="green" />
-                    Uploaded
-                  </>
+                  <><GlassIcon name="camera" size={13} variant="green" />Uploaded</>
                 )}
               </span>
             </div>
             <div className="header-right">
-              <button className="btn-back" onClick={() => { reset(); setStage('intro'); }}>← New Circuit</button>
+              <button id="btn-new-circuit" className="btn-back" onClick={() => { reset(); setStage('intro'); }}>
+                ← New Circuit
+              </button>
               <div className="speed-badge" data-active={analysisTime > 0}>
-                {analysisTime > 0 ? <><GlassIcon name="bolt" size={10} variant="purple" style={{ marginRight: '4px', padding: '1px' }} />{analysisTime}ms<span className="speed-label">{getLastCerebrasTiming()?.model || 'Cerebras'}</span></> : <><GlassIcon name="bolt" size={10} variant="purple" style={{ marginRight: '4px', padding: '1px' }} />—</>}
+                {analysisTime > 0 ? (
+                  <>
+                    <GlassIcon name="bolt" size={10} variant="purple" style={{ padding: '1px' }} />
+                    {analysisTime}ms
+                    <span className="speed-label">{getLastCerebrasTiming()?.model || 'Cerebras'}</span>
+                  </>
+                ) : (
+                  <><GlassIcon name="bolt" size={10} variant="purple" style={{ padding: '1px' }} />—</>
+                )}
               </div>
             </div>
           </header>
 
-          {statusMsg && <div className="status-bar"><div className="spinner-small" />{statusMsg}</div>}
+          {statusMsg && (
+            <div className="status-bar">
+              <div className="spinner-small" />
+              {statusMsg}
+            </div>
+          )}
 
           <PipelineSteps steps={steps} activeIndex={getStepIndex()} completedIndex={getStepIndex()} />
 
           <main className="demo-main">
+            {/* Left: Schematic diagram (full height) */}
             <section className="panel schematic-panel">
               <div className="panel-header">
-                <h2>Netlist</h2>
-                {currentNetlist && <button className="btn-small" onClick={() => setShowNetlist(!showNetlist)}>{showNetlist ? 'Hide' : 'View'}</button>}
+                <h2>Schematic</h2>
+                {currentNetlist && (
+                  <button
+                    id="btn-toggle-netlist"
+                    className="btn-small"
+                    onClick={() => setShowNetlist(!showNetlist)}
+                  >
+                    {showNetlist ? 'Diagram' : 'Netlist'}
+                  </button>
+                )}
               </div>
               <div className="panel-body">
-                {showNetlist ? <NetlistViewer netlist={currentNetlist} /> : selectedCircuit ? (
-                  <CircuitDiagram components={currentNetlist.components} selectedRef={selectedComp} onComponentClick={(ref) => {
-                    const newSel = ref === selectedComp ? null : ref;
-                    setSelectedComp(newSel);
-                    setNetContext(newSel ? getNetContext(newSel, currentNetlist) : null);
-                    if (newSel) setActiveTab('context');
-                  }} circuitId={selectedCircuit.id} />
-                ) : <div className="empty-state"><GlassIcon name="clipboard" size={32} variant="gray" style={{ marginBottom: '12px' }} /><p>{currentNetlist.components.length} components extracted</p></div>}
+                {showNetlist
+                  ? <NetlistViewer netlist={currentNetlist} />
+                  : selectedCircuit
+                    ? (
+                      <CircuitDiagram
+                        components={currentNetlist.components}
+                        selectedRef={selectedComp}
+                        onComponentClick={(ref) => {
+                          const next = ref === selectedComp ? null : ref;
+                          setSelectedComp(next);
+                          setNetContext(next ? getNetContext(next, currentNetlist) : null);
+                          if (next) setActiveTab('context');
+                        }}
+                        circuitId={selectedCircuit.id}
+                      />
+                    )
+                    : (
+                      <div className="empty-state">
+                        <GlassIcon name="clipboard" size={28} variant="gray" />
+                        <p>{currentNetlist.components.length} components extracted</p>
+                      </div>
+                    )
+                }
               </div>
             </section>
 
+            {/* Top right: Analysis + Agent output */}
             <section className="panel analysis-panel">
               <div className="panel-header">
                 <div className="panel-tabs">
-                  <button className={`panel-tab ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')}>Analysis</button>
-                  <button className={`panel-tab ${activeTab === 'bringup' ? 'active' : ''}`} onClick={() => setActiveTab('bringup')}>Bring-Up</button>
-                  <button className={`panel-tab ${activeTab === 'context' ? 'active' : ''}`} onClick={() => setActiveTab('context')}>Context</button>
+                  <button id="tab-analysis" className={`panel-tab ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')}>Analysis</button>
+                  <button id="tab-bringup" className={`panel-tab ${activeTab === 'bringup' ? 'active' : ''}`} onClick={() => setActiveTab('bringup')}>Bring-Up</button>
+                  <button id="tab-context" className={`panel-tab ${activeTab === 'context' ? 'active' : ''}`} onClick={() => setActiveTab('context')}>Net Context</button>
                 </div>
               </div>
               <div className="panel-body">
@@ -465,7 +615,7 @@ function App() {
                     {agentResults.theoretical && (
                       <div className="analysis-content">
                         <div className="analysis-card">
-                          <h3>Agent 1: Math Analyst</h3>
+                          <h3>Theory Agent</h3>
                           <div className="agent-result">
                             <div className="agent-label">{agentResults.theoretical.circuitType}</div>
                             <div className="formula">{agentResults.theoretical.formula}</div>
@@ -482,58 +632,72 @@ function App() {
                         </div>
                       </div>
                     )}
+
                     {protocolResult && protocolResult.protocol !== 'single-channel' && (
-                      <div className="protocol-badge">
-                        <GlassIcon name="gear" size={12} variant="blue" style={{ marginRight: '6px' }} />
+                      <div className="protocol-badge" style={{ marginTop: '12px' }}>
+                        <GlassIcon name="gear" size={11} variant="blue" />
                         <span>{protocolResult.protocol} detected ({(protocolResult.confidence * 100).toFixed(0)}% confidence)</span>
-                        {protocolResult.findings.map((f: string, i: number) => <span key={i} className="protocol-finding">{f}</span>)}
+                        {protocolResult.findings.map((f: string, i: number) => (
+                          <span key={i} className="protocol-finding">{f}</span>
+                        ))}
                       </div>
                     )}
-                    {analysis ? <AnalysisPanel analysis={analysis} /> : isProcessing ? (
-                      <div className="analyzing-spinner"><div className="spinner" /><p>{statusMsg}</p></div>
-                    ) : <div className="empty-state"><GlassIcon name="bolt" size={32} variant="gray" style={{ marginBottom: '12px' }} /><p>Netlist loaded — agents computing</p></div>}
+
+                    {analysis
+                      ? <AnalysisPanel analysis={analysis} />
+                      : isProcessing
+                        ? <div className="analyzing-spinner"><div className="spinner" /><p>{statusMsg}</p></div>
+                        : <div className="empty-state"><GlassIcon name="bolt" size={28} variant="gray" /><p>Netlist loaded — agents computing</p></div>
+                    }
                   </>
                 )}
-                {activeTab === 'bringup' && (
-                  <BringUpChecklist steps={bringUpSteps} />
-                )}
-                {activeTab === 'context' && (
-                  <NetContextPanel context={netContext} />
-                )}
+                {activeTab === 'bringup' && <BringUpChecklist steps={bringUpSteps} />}
+                {activeTab === 'context' && <NetContextPanel context={netContext} />}
               </div>
             </section>
 
+            {/* Bottom right: Waveform + Verification (rendered when ready) */}
             {(stage === 'analysis' || stage === 'waveform' || stage === 'verified') && (
               <>
                 <section className="panel waveform-panel">
                   <div className="panel-header">
                     <h2>Waveform</h2>
                     <div className="waveform-buttons">
-                      {selectedCircuit && (
+                      {selectedCircuit && stage === 'analysis' && (
                         <>
-                          {stage === 'analysis' && (
-                            <>
-                              <button className="btn-verify" onClick={() => handleLoadDemoWaveform(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                <GlassIcon name="check" size={10} variant="green" style={{ padding: '2px' }} /> Correct
-                              </button>
-                              <button className="btn-mismatch" onClick={() => handleLoadDemoWaveform(false)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                <GlassIcon name="cross" size={10} variant="red" style={{ padding: '2px' }} /> Mismatched
-                              </button>
-                            </>
-                          )}
-                          <button className="btn-small" style={{ background: 'rgba(52, 211, 153, 0.1)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.2)', display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => handleDownloadSampleCSV(true)} title="Download simulated matching CSV">
-                            <GlassIcon name="download" size={10} variant="green" style={{ padding: '2px' }} /> Matching CSV
+                          <button id="btn-demo-correct" className="btn-verify" onClick={() => handleLoadDemoWaveform(true)}>
+                            <GlassIcon name="check" size={10} variant="green" style={{ padding: '1px' }} /> Correct
                           </button>
-                          <button className="btn-small" style={{ background: 'rgba(248, 113, 113, 0.1)', color: '#f87171', border: '1px solid rgba(248, 113, 113, 0.2)', display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => handleDownloadSampleCSV(false)} title="Download simulated mismatched CSV">
-                            <GlassIcon name="download" size={10} variant="red" style={{ padding: '2px' }} /> Mismatched CSV
+                          <button id="btn-demo-mismatch" className="btn-mismatch" onClick={() => handleLoadDemoWaveform(false)}>
+                            <GlassIcon name="cross" size={10} variant="red" style={{ padding: '1px' }} /> Mismatched
                           </button>
                         </>
                       )}
-                      <button className="btn-small" onClick={() => scopeImageRef.current?.click()} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <GlassIcon name="camera" size={10} variant="purple" style={{ padding: '2px' }} /> Scope Image
+                      {selectedCircuit && (
+                        <>
+                          <button
+                            id="btn-dl-csv-match"
+                            className="btn-small"
+                            style={{ color: '#34d399', borderColor: 'rgba(52,211,153,0.2)' }}
+                            onClick={() => handleDownloadSampleCSV(true)}
+                          >
+                            <GlassIcon name="download" size={10} variant="green" style={{ padding: '1px' }} /> CSV ✓
+                          </button>
+                          <button
+                            id="btn-dl-csv-mismatch"
+                            className="btn-small"
+                            style={{ color: '#f87171', borderColor: 'rgba(248,113,113,0.2)' }}
+                            onClick={() => handleDownloadSampleCSV(false)}
+                          >
+                            <GlassIcon name="download" size={10} variant="red" style={{ padding: '1px' }} /> CSV ✗
+                          </button>
+                        </>
+                      )}
+                      <button id="btn-scope-image" className="btn-small" onClick={() => scopeImageRef.current?.click()}>
+                        <GlassIcon name="camera" size={10} variant="purple" style={{ padding: '1px' }} /> Scope Image
                       </button>
-                      <button className="btn-small" onClick={() => scopeCsvRef.current?.click()} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <GlassIcon name="timer" size={10} variant="purple" style={{ padding: '2px' }} /> Scope CSV
+                      <button id="btn-scope-csv" className="btn-small" onClick={() => scopeCsvRef.current?.click()}>
+                        <GlassIcon name="timer" size={10} variant="purple" style={{ padding: '1px' }} /> Scope CSV
                       </button>
                       <input ref={scopeImageRef} type="file" accept="image/*" onChange={handleScopeImageUpload} style={{ display: 'none' }} />
                       <input ref={scopeCsvRef} type="file" accept=".csv,.tsv,.txt" onChange={handleScopeCsvUpload} style={{ display: 'none' }} />
@@ -541,8 +705,16 @@ function App() {
                   </div>
                   <div className="panel-body">
                     {waveform && analysis?.predictedWaveform ? (
-                      <WaveformViewer waveform={{ type: analysis.predictedWaveform.type, description: analysis.predictedWaveform.description, measurements: waveform }} predicted={analysis.predictedWaveform.measurements} />
-                    ) : <div className="empty-state"><GlassIcon name="timer" size={32} variant="gray" style={{ marginBottom: '12px' }} /><p>Load scope data to verify</p></div>}
+                      <WaveformViewer
+                        waveform={{ type: analysis.predictedWaveform.type, description: analysis.predictedWaveform.description, measurements: waveform }}
+                        predicted={analysis.predictedWaveform.measurements}
+                      />
+                    ) : (
+                      <div className="empty-state">
+                        <GlassIcon name="timer" size={28} variant="gray" />
+                        <p>Load scope data to verify</p>
+                      </div>
+                    )}
                   </div>
                 </section>
 
@@ -550,7 +722,10 @@ function App() {
                   <section className="panel verification-panel">
                     <div className="panel-header"><h2>Verification</h2></div>
                     <div className="panel-body">
-                      <VerificationPanel predicted={analysis?.predictedWaveform?.measurements || waveform!} actual={waveform!} />
+                      <VerificationPanel
+                        predicted={analysis?.predictedWaveform?.measurements || waveform!}
+                        actual={waveform!}
+                      />
                     </div>
                   </section>
                 )}
