@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CircuitDiagram } from './components/CircuitDiagram';
 import { WaveformViewer } from './components/WaveformViewer';
@@ -83,6 +83,7 @@ function App() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const scopeImageRef = useRef<HTMLInputElement>(null);
   const scopeCsvRef = useRef<HTMLInputElement>(null);
+  const autoShowDefect = useRef(false);
 
   // Listen for cross-product navigation events
   useEffect(() => {
@@ -192,6 +193,22 @@ function App() {
     setStage('analysis');
     setIsProcessing(false);
   }, [addAgentLog]);
+
+  // Auto-show mismatched waveform when launched from case study card
+  useEffect(() => {
+    if (stage === 'analysis' && autoShowDefect.current && selectedCircuit && analysis?.predictedWaveform && currentNetlist) {
+      autoShowDefect.current = false;
+      const { theoretical } = agentResults;
+      if (!theoretical) return;
+      const demoWave = selectedCircuit.mismatchedWaveform;
+      setWaveform(demoWave.measurements);
+      setAgentResults(prev => ({ ...prev, waveformSource: 'Demo: industry case study' }));
+      const result = synthesizeVerification(theoretical, demoWave.measurements, currentNetlist);
+      setVerification(result);
+      setStage('verified');
+      addAgentLog('System', `[Auto] Loaded mismatched waveform — defect detected (score: ${(result.score * 100).toFixed(0)}%)`, 'verification');
+    }
+  }, [stage, selectedCircuit, analysis, currentNetlist, agentResults, addAgentLog]);
 
   // ── Demo Flow ──
 
@@ -485,36 +502,43 @@ function App() {
               <div className="tech-pill">Verification Agent — Signal Sync</div>
             </div>
 
-            {/* Real-World Case Studies */}
+            {/* Real-World Case Studies — clickable, runs full pipeline */}
             <div className="case-studies-row">
-              <div className="circuit-card circuit-automotive">
-                <span className="circuit-industry-tag industry-automotive">AUTOMOTIVE</span>
-                <span style={{ fontSize: '18px' }}>🚗</span>
-                <span className="circuit-card-name">BLDC Motor Shoot-Through</span>
-                <span className="circuit-card-desc">Dead-time violation melts gate driver — $2,400 repair per ECU</span>
-                <span className="circuit-usecase">Agent detects: Vgs ringing &gt;20V, cross-conduction at commutation</span>
-              </div>
-              <div className="circuit-card circuit-medical">
-                <span className="circuit-industry-tag industry-medical">MEDICAL</span>
-                <span style={{ fontSize: '18px' }}>🏥</span>
-                <span className="circuit-card-name">ECG CMRR Degradation</span>
-                <span className="circuit-card-desc">RFI filter drift makes ECG unreadable — misdiagnosis risk</span>
-                <span className="circuit-usecase">Agent detects: CMRR drop 100dB→72dB, 50Hz mains bleed-through</span>
-              </div>
-              <div className="circuit-card circuit-power">
-                <span className="circuit-industry-tag industry-power">POWER</span>
-                <span style={{ fontSize: '18px' }}>⚡</span>
-                <span className="circuit-card-name">Buck Converter Saturation</span>
-                <span className="circuit-card-desc">Aged inductor doubles ripple — 5V rail droops to 4.2V, logic glitches</span>
-                <span className="circuit-usecase">Agent detects: 200mV p-p ripple, subharmonic oscillation at 8kHz</span>
-              </div>
-              <div className="circuit-card circuit-industrial">
-                <span className="circuit-industry-tag industry-industrial">INDUSTRIAL</span>
-                <span style={{ fontSize: '18px' }}>🏭</span>
-                <span className="circuit-card-name">PLC Optocoupler Failure</span>
-                <span className="circuit-card-desc">CTR drops 100%→30% after 50k hours — machine loses all sensors</span>
-                <span className="circuit-usecase">Agent detects: logic level never reaches 2.5V threshold, stuck low</span>
-              </div>
+              {(() => {
+                const c = (id: string) => DEMO_CIRCUITS.find(d => d.id === id)!;
+                return (
+                  <>
+                    <button className="circuit-card circuit-automotive" onClick={() => { autoShowDefect.current = true; handleSelectCircuit(c('bldc-motor')); }}>
+                      <span className="circuit-industry-tag industry-automotive">AUTOMOTIVE</span>
+                      <span style={{ fontSize: '18px' }}>🚗</span>
+                      <span className="circuit-card-name">BLDC Motor Shoot-Through</span>
+                      <span className="circuit-card-desc">Dead-time violation melts gate driver — $2,400 repair per ECU</span>
+                      <span className="circuit-usecase">Agent detects: Vgs ringing &gt;20V, cross-conduction at commutation</span>
+                    </button>
+                    <button className="circuit-card circuit-medical" onClick={() => { autoShowDefect.current = true; handleSelectCircuit(c('ecg-frontend')); }}>
+                      <span className="circuit-industry-tag industry-medical">MEDICAL</span>
+                      <span style={{ fontSize: '18px' }}>🏥</span>
+                      <span className="circuit-card-name">ECG CMRR Degradation</span>
+                      <span className="circuit-card-desc">RFI filter drift makes ECG unreadable — misdiagnosis risk</span>
+                      <span className="circuit-usecase">Agent detects: CMRR drop 100dB→72dB, 50Hz mains bleed-through</span>
+                    </button>
+                    <button className="circuit-card circuit-power" onClick={() => { autoShowDefect.current = true; handleSelectCircuit(c('buck-converter')); }}>
+                      <span className="circuit-industry-tag industry-power">POWER</span>
+                      <span style={{ fontSize: '18px' }}>⚡</span>
+                      <span className="circuit-card-name">Buck Converter Saturation</span>
+                      <span className="circuit-card-desc">Aged inductor doubles ripple — 5V rail droops to 4.2V, logic glitches</span>
+                      <span className="circuit-usecase">Agent detects: 200mV p-p ripple, subharmonic oscillation at 8kHz</span>
+                    </button>
+                    <button className="circuit-card circuit-industrial" onClick={() => { autoShowDefect.current = true; handleSelectCircuit(c('plc-input')); }}>
+                      <span className="circuit-industry-tag industry-industrial">INDUSTRIAL</span>
+                      <span style={{ fontSize: '18px' }}>🏭</span>
+                      <span className="circuit-card-name">PLC Optocoupler Failure</span>
+                      <span className="circuit-card-desc">CTR drops 100%→30% after 50k hours — machine loses all sensors</span>
+                      <span className="circuit-usecase">Agent detects: logic level never reaches 2.5V threshold, stuck low</span>
+                    </button>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Input card */}
