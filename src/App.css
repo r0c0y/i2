@@ -1900,3 +1900,67 @@ html, body, #root {
 }
 .net-failure-list li { color: var(--red); }
 .net-probe-list li { color: var(--blue); }
+
+/* ── Responsive Media Queries ── */
+
+@media (max-width: 1024px) {
+  .demo-main {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+  .panel {
+    height: 480px !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+  .intro-title {
+    font-size: 2rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .demo-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    padding: 10px 16px !important;
+  }
+  .header-right {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+  .view-mode-toggle {
+    padding: 4px 6px !important;
+  }
+  .mode-btn {
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+  }
+  .intro-title {
+    font-size: 1.6rem !important;
+  }
+  .intro-subtitle {
+    font-size: 13px !important;
+  }
+  .intro-tech-row {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 6px !important;
+  }
+  .tab-row {
+    flex-wrap: wrap !important;
+  }
+  .circuit-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .btn-verify, .btn-mismatch, .btn-small {
+    font-size: 10px !important;
+    padding: 4px 6px !important;
+  }
+  .waveform-buttons {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    justify-content: flex-end !important;
+  }
+}

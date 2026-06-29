@@ -800,3 +800,72 @@
   margin-left: auto;
 }
 
+/* ── Responsive Media Queries ── */
+
+@media (max-width: 1024px) {
+  .cadence-main {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+  .cadence-panel {
+    height: 520px !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+  .image-column {
+    height: 500px !important;
+  }
+  .cadence-dashboard {
+    height: auto !important;
+    overflow-y: auto !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .cadence-status-bar {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding: 10px 14px !important;
+  }
+  .cadence-status-right {
+    width: 100% !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .cadence-controls {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    padding: 10px 14px !important;
+  }
+  .swarm-telemetry-badge {
+    margin-left: 0 !important;
+    margin-top: 6px !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 12px !important;
+  }
+  .dashboard-metrics-strip {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .dashboard-metrics-strip > div:last-child {
+    grid-column: span 2 !important;
+  }
+  .swarm-tabs {
+    flex-wrap: wrap !important;
+  }
+  .swarm-tab-btn {
+    font-size: 10px !important;
+    padding: 4px 6px !important;
+  }
+  .signal-split-screen {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+}
+
