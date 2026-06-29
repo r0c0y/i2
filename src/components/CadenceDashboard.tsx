@@ -88,7 +88,6 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
     return localStorage.getItem('estop_threshold') || 'critical'
   })
   const [cerebrasKey, setCerebrasKey] = useState(() => localStorage.getItem('cerebras_api_key') || '')
-  const [groqKey, setGroqKey] = useState(() => localStorage.getItem('groq_api_key') || '')
 
   const imageInputRef = useRef<HTMLInputElement>(null)
   const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -206,7 +205,6 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
   // Settings Save Handler
   const handleSaveSettings = () => {
     localStorage.setItem('cerebras_api_key', cerebrasKey)
-    localStorage.setItem('groq_api_key', groqKey)
     localStorage.setItem('line_speed', lineSpeed.toString())
     localStorage.setItem('estop_threshold', eStopThreshold)
     setShowSettings(false)
@@ -353,17 +351,6 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
                   onChange={(e) => setCerebrasKey(e.target.value)}
                 />
                 <span className="hint">Allows the Swarm to run queries on your personal Cerebras Cloud account.</span>
-              </div>
-
-              <div className="settings-row">
-                <label>Groq API Key (Fallback)</label>
-                <input 
-                  type="password" 
-                  placeholder="Paste gsk_... key"
-                  value={groqKey}
-                  onChange={(e) => setGroqKey(e.target.value)}
-                />
-                <span className="hint">Stored locally in your browser storage.</span>
               </div>
             </div>
             <div className="drawer-footer">

@@ -1,8 +1,8 @@
 // ══════════════════════════════════════════════════════════════
 //  Cadence — Manufacturing Defect Detection Swarm
 //  Wing A: Local Vision (canvas-based defect analysis)
-//  Wing B: Root-Cause Analyst (Groq LLM)
-//  Wing C: Alert Dispatcher (Groq LLM + tool calling)
+//  Wing B: Root-Cause Analyst (Cerebras Gemma 4)
+//  Wing C: Alert Dispatcher (Cerebras Gemma 4 + tool calling)
 // ══════════════════════════════════════════════════════════════
 
 import type {
@@ -22,11 +22,7 @@ const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions'
 const getCerebrasKey = () => localStorage.getItem('cerebras_api_key') || (import.meta.env ? import.meta.env.VITE_CEREBRAS_API_KEY : '') || ''
 const CEREBRAS_MODEL = 'gemma-4-31b'
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const getGroqKey = () => localStorage.getItem('groq_api_key') || (import.meta.env ? import.meta.env.VITE_GROQ_API_KEY : '') || ''
-const GROQ_MODEL = 'llama-3.3-70b-versatile'
-
-// ═══ Unified API Caller (Prefers Cerebras Gemma 4 31B, falls back to Groq) ═══
+// ═══ Unified API Caller (Cerebras Gemma 4 31B only) ═══
 
 async function callAPI(opts: {
   messages: any[]
@@ -73,44 +69,10 @@ async function callAPI(opts: {
       console.warn(`Cerebras responded with status ${response.status}: ${txt}`)
     }
   } catch (e) {
-    console.warn('Cerebras failed, falling back to Groq:', e)
+    throw new Error(`Cerebras API failed: ${e}`)
   }
 
-  // 2. Fallback to Groq
-  return callGroq(opts)
-}
-
-async function callGroq(opts: {
-  messages: any[]
-  jsonMode?: boolean
-  maxTokens?: number
-}): Promise<{ content: string; timing: number }> {
-  const { messages, jsonMode = true, maxTokens = 2000 } = opts
-  const body: any = {
-    model: GROQ_MODEL,
-    messages,
-    temperature: 0.3,
-    max_tokens: maxTokens,
-  }
-  if (jsonMode) body.response_format = { type: 'json_object' }
-
-  const startTime = Date.now()
-  const response = await fetch(GROQ_API_URL, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${getGroqKey()}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`Groq API ${response.status}: ${err}`)
-  }
-  const data = await response.json()
-  const timing = Date.now() - startTime
-  console.log(`[Groq/Cadence] ${data.model} | ${timing}ms`)
-  return {
-    content: data.choices[0].message.content,
-    timing,
-  }
+  throw new Error('Cerebras API key not configured')
 }
 
 // ═══ Real Multimodal Defect Analysis ═══
@@ -274,7 +236,6 @@ const ALERT_SCHEMA = {
 
 // ═══ Agent Wing A: Vision Inspectors ═══
 // Local image analysis — compares against golden master reference
-// No API needed for vision; Groq handles root-cause analysis
 
 export async function inspectImage(
   imageBase64: string,
@@ -664,7 +625,6 @@ export async function dispatchAlert(
     toolCalls.push({ name: 'log_defect', arguments: { defectType: 'multiple', severity: hasCritical ? 'critical' : hasMajor ? 'major' : 'minor', description: `${inspection.defects.length} defects found` } })
   }
 
-  // Use Groq to generate a human-readable alert message
   const messages = [
     {
       role: 'system',

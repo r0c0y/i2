@@ -1,19 +1,12 @@
 import type { Netlist, CircuitAnalysis, WaveformMeasurement, VerificationResult, DemoCircuit, BringUpStep, NetContext } from '../types'
 
 // ══════════════════════════════════════════════════════════════
-//  API Layer — Groq Primary, Cerebras Fallback
-//  Groq: llama-3.3-70b, openai/gpt-oss-120b
+//  API Layer — Cerebras Gemma 4 (Only)
 //  Cerebras: gemma-4-31b (vision), gpt-oss-120b (text+reasoning)
 // ══════════════════════════════════════════════════════════════
 
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions'
 const getCerebrasKey = () => localStorage.getItem('cerebras_api_key') || (import.meta.env ? import.meta.env.VITE_CEREBRAS_API_KEY : '') || ''
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const getGroqKey = () => localStorage.getItem('groq_api_key') || (import.meta.env ? import.meta.env.VITE_GROQ_API_KEY : '') || ''
-
-// Groq models (primary — actually working)
-const GROQ_TEXT = 'llama-3.3-70b-versatile'
-const GROQ_FAST = 'llama-3.1-8b-instant'
 
 // Cerebras models (Gemma 4 31B is the primary hosted model)
 const CEREBRAS_VISION = 'gemma-4-31b'
@@ -138,7 +131,6 @@ export function getLastCerebrasTiming() { return lastCerebrasTiming }
 
 // ═══ Core API Callers ═══
 
-// Try Cerebras first, fall back to Groq
 async function callAPI(opts: {
   messages: any[]
   jsonMode?: boolean
@@ -181,54 +173,11 @@ async function callAPI(opts: {
         return data.choices[0].message.content
       }
     } catch (e) {
-      console.warn('Cerebras failed, using Groq:', e)
+      throw new Error(`Cerebras API failed: ${e}`)
     }
   }
 
-  // Groq (always works)
-  return callGroq(opts)
-}
-
-async function callGroq(opts: {
-  messages: any[]
-  jsonMode?: boolean
-  jsonSchema?: object
-  maxTokens?: number
-}): Promise<string> {
-  const { messages, jsonMode = true, jsonSchema, maxTokens = 3000 } = opts
-  const body: any = {
-    model: GROQ_TEXT,
-    messages,
-    temperature: 0.3,
-    max_tokens: maxTokens,
-  }
-  if (jsonSchema) {
-    body.response_format = { type: 'json_object' }
-  } else if (jsonMode) {
-    body.response_format = { type: 'json_object' }
-  }
-
-  const startTime = Date.now()
-  const response = await fetch(GROQ_API_URL, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${getGroqKey()}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`Groq API ${response.status}: ${err}`)
-  }
-  const data = await response.json()
-  const totalTime = Date.now() - startTime
-
-  lastCerebrasTiming = {
-    ttft: (data.usage?.prompt_time || 0) * 1000,
-    total: totalTime,
-    model: `groq/${data.model || GROQ_TEXT}`,
-    cachedTokens: data.usage?.prompt_tokens_details?.cached_tokens,
-  }
-  console.log(`[Groq] ${data.model} | ${totalTime}ms | ${data.usage?.total_tokens} tokens`)
-  return data.choices[0].message.content
+  throw new Error('Cerebras API key not configured')
 }
 
 // ═══ Prompt Construction (Cache-Optimized) ═══

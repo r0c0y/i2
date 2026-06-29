@@ -160,7 +160,7 @@ export function LandingStack() {
     { name: 'React 19', icon: '⚛️' },
     { name: 'TypeScript', icon: '🔷' },
     { name: 'Cerebras Gemma 4', icon: '🧠' },
-    { name: 'Groq API', icon: '⚡' },
+    { name: 'Canvas API', icon: '🖼️' },
     { name: 'Vite', icon: '⚙️' },
     { name: 'Tailwind CSS', icon: '🎨' },
   ]

@@ -151,11 +151,11 @@ const DEFECTS = [
 
 const STACK = [
   { k: 'Frontend',    v: 'React + TypeScript + Vite' },
-  { k: 'Primary AI',  v: 'Cerebras gemma-4-31b' },
-  { k: 'Fallback AI', v: 'Groq llama-3.3-70b' },
-  { k: 'Vision',      v: 'Local canvas pixel analysis' },
+  { k: 'Primary AI',  v: 'Cerebras Gemma 4 31B' },
+  { k: 'Vision',      v: 'Cerebras Vision API' },
   { k: 'Demo set',    v: '10 realistic PCB images' },
   { k: 'Latency',     v: 'Sub-second end to end' },
+  { k: 'Agents',      v: '118-agent swarm' },
 ]
 
 // ── Component ─────────────────────────────────────────────────

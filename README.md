@@ -1,6 +1,6 @@
 # Cadence — Real-Time Manufacturing Defect Detection
 
-**AI-powered assembly line inspection** using Groq's `llama-3.3-70b-versatile` for root-cause analysis and alert dispatch. Built for the Cerebras x Google Gemma 4 hackathon.
+
 
 ---
 
@@ -11,8 +11,8 @@ Cadence is a browser-based manufacturing defect detection system with a **3-agen
 | Agent | Role | Speed |
 |-------|------|-------|
 | **Wing A** | Vision Inspectors — parallel quadrant scanning against golden master | ~100ms |
-| **Wing B** | Root-Cause Analyst — cross-references defects against troubleshooting manual via Groq LLM | ~300ms |
-| **Wing C** | Alert Dispatcher — rule-based actions + Groq-generated alert messages | ~200ms |
+| **Wing B** | Root-Cause Analyst — cross-references defects against troubleshooting manual via Cerebras Gemma 4 | ~300ms |
+| **Wing C** | Alert Dispatcher — rule-based actions + Cerebras-generated alert messages | ~200ms |
 
 **Total pipeline: <1 second per PCB inspection**
 
@@ -20,7 +20,7 @@ Cadence is a browser-based manufacturing defect detection system with a **3-agen
 
 1. **Upload a PCB image** or select from the demo gallery (10 pre-built images)
 2. **Wing A** analyzes the image locally — detects color distribution, solder reflections, component presence
-3. **Wing B** sends defect summary to Groq LLM which cross-references against a troubleshooting manual
+3. **Wing B** sends defect summary to Cerebras Gemma 4 which cross-references against a troubleshooting manual
 4. **Wing C** determines actions (stop line, alert supervisor, quarantine batch, log defect) and generates alert messages
 5. **Dashboard** shows: live defect feed, root cause analysis, tool calls, timing breakdown
 
@@ -47,7 +47,7 @@ Cadence is a browser-based manufacturing defect detection system with a **3-agen
 ## Tech Stack
 
 - **Frontend:** React + TypeScript + Vite
-- **AI Backend:** Groq `llama-3.3-70b-versatile` (primary), Cerebras `gpt-oss-120b` (fallback)
+
 - **Image Analysis:** Local canvas-based pixel analysis
 - **Demo Images:** 10 realistic PCB images generated with Node.js canvas (4 good + 6 defective)
 
@@ -123,19 +123,13 @@ Generate new images: `node scripts/gen-pcb.mjs`
 
 ## API Configuration
 
-The app uses **Groq** as the primary AI backend:
-
 ```typescript
-// Groq (primary — working)
-const GROQ_API_KEY = 'gsk_...'
-const GROQ_MODEL = 'llama-3.3-70b-versatile'
-
-// Cerebras (fallback — may have quota issues)
+// Cerebras Gemma 4 (only)
 const CEREBRAS_API_KEY = 'csk_...'
 const CEREBRAS_MODEL = 'gpt-oss-120b'
 ```
 
-The app tries Cerebras first, then falls back to Groq automatically.
+The app uses Cerebras exclusively for all LLM operations.
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## What It Does
 
-**CircuitScope** is a browser-based tool that analyzes circuit schematics and oscilloscope waveforms using an LLM (Gemma 4 via Groq). It follows a **hybrid pipeline** pattern — the same approach used by SINA (96.47% accuracy), CircuitVision, and Phosphor.
+**CircuitScope** is a browser-based tool that analyzes circuit schematics and oscilloscope waveforms using Cerebras Gemma 4. It follows a **hybrid pipeline** pattern — the same approach used by SINA (96.47% accuracy), CircuitVision, and Phosphor.
 
 ### Two Modes
 
@@ -18,15 +18,15 @@
 ### The Pipeline
 
 ```
-Schematic Image → [Groq Vision: Llama 4 Scout] → Netlist → [Groq Text: Llama 3.3 70B] → Predicted Waveform
+Schematic Image → [Cerebras Vision] → Netlist → [Cerebras Gemma 4] → Predicted Waveform
                                                                                               ↓
-Oscilloscope Image → [Groq Vision: Llama 4 Scout] → Measurements ──────────────────────→ Verification Report
+Oscilloscope Image → [Cerebras Vision] → Measurements ──────────────────────→ Verification Report
 ```
 
 1. **Upload schematic** (or pick demo) — PNG/JPG of any circuit drawing
-2. **Vision extraction** — Llama 4 Scout reads the image, identifies components, values, connections → outputs structured netlist JSON
-3. **Text analysis** — Llama 3.3 70B receives the netlist, predicts expected behavior, calculates frequency/voltage/duty cycle
-4. **Upload oscilloscope** (or pick correct/mismatched) — Llama 4 Scout reads the scope screen, extracts measurements
+2. **Vision extraction** — Cerebras Vision reads the image, identifies components, values, connections → outputs structured netlist JSON
+3. **Text analysis** — Cerebras Gemma 4 receives the netlist, predicts expected behavior, calculates frequency/voltage/duty cycle
+4. **Upload oscilloscope** (or pick correct/mismatched) — Cerebras Vision reads the scope screen, extracts measurements
 5. **Verification** — compares predicted vs actual, shows pass/fail with root causes
 
 ### Why Hybrid Pipeline?
@@ -36,17 +36,17 @@ Pure vision-based circuit reading is unreliable. The proven approach (SINA, Circ
 - **Structured data** (netlist) goes to the LLM for reasoning
 - LLM doesn't try to "see" pixels — it reasons over clean data
 
-This app implements the full pipeline end-to-end with real Groq Vision API calls.
+This app implements the full pipeline end-to-end with real Cerebras Vision API calls.
 
 ### What's Real vs Demo
 
 | Feature | Real | Demo |
 |---------|------|------|
-| Schematic image → netlist | ✅ Groq Vision (PNG, JPG, BMP, TIFF, PPM) | Pre-loaded netlists |
-| Schematic PDF → netlist | ✅ pdf.js + Groq Vision | — |
+| Schematic image → netlist | ✅ Cerebras Vision (PNG, JPG, BMP, TIFF, PPM) | Pre-loaded netlists |
+| Schematic PDF → netlist | ✅ pdf.js + Cerebras Vision | — |
 | Paste SPICE netlist | ✅ Local text parser | — |
-| Netlist → behavior prediction | ✅ Groq Text API | Same |
-| Oscilloscope image → measurements | ✅ Groq Vision | — |
+| Netlist → behavior prediction | ✅ Cerebras Gemma 4 | Same |
+| Oscilloscope image → measurements | ✅ Cerebras Vision | — |
 | Scope CSV → measurements | ✅ Local CSV parser | Pre-loaded measurements |
 | Predicted vs actual comparison | ✅ Local calculation | Same |
 | Verification report | ✅ Local calculation | Same |
@@ -62,7 +62,7 @@ CxG4/i2/
 │   ├── App.css              — Full dark theme, animations, gradients
 │   ├── types/index.ts       — TypeScript interfaces (Component, Netlist, WaveformMeasurement, etc.)
 │   ├── services/
-│   │   └── circuitAnalysis.ts  — Groq API calls, demo circuits, waveform comparison
+│   │   └── circuitAnalysis.ts  — Cerebras API calls, demo circuits, waveform comparison
 │   └── components/
 │       ├── CircuitDiagram.tsx   — 4 unique SVG schematics (555, inverter, LED driver, RC filter)
 │       ├── AnalysisPanel.tsx    — Shows LLM's predicted behavior + waveform params
@@ -131,9 +131,9 @@ Each has:
 
 ### Stage 3: Analyzing
 - Click "Analyze with Gemma" → spinner shows
-- Netlist is sent to Groq API (llama-3.3-70b-versatile)
+- Netlist is sent to Cerebras API (Gemma 4)
 - Response parsed as JSON → CircuitAnalysis object
-- Speed badge shows inference time (e.g., "⚡ 247ms Gemma")
+- Speed badge shows inference time (e.g., "⚡ 247ms Cerebras")
 
 ### Stage 4: Analysis
 - Results appear: predicted behavior, expected waveform params (frequency, Vpp, duty cycle), issues, confidence
@@ -164,7 +164,7 @@ All TypeScript interfaces:
 - `DemoCircuit` — complete demo: name, netlist, matching waveform, mismatched waveform
 
 ### `services/circuitAnalysis.ts`
-- `analyzeCircuit(netlist)` — sends netlist to Groq API, returns CircuitAnalysis
+- `analyzeCircuit(netlist)` — sends netlist to Cerebras API, returns CircuitAnalysis
 - `compareWaveforms(predicted, actual)` — local comparison, no API needed
 - `DEMO_CIRCUITS[]` — 4 pre-built circuits with all data
 
@@ -195,8 +195,7 @@ All TypeScript interfaces:
 - `pdfToBase64Image(file)` — converts PDF first page to PNG via pdf.js
 
 **Text (netlist → analysis):**
-- Primary: `llama-3.3-70b-versatile`
-- Fallback: `llama-3.1-8b-instant`
+- Model: `Cerebras Gemma 4 31B`
 - `analyzeCircuit(netlist)` — predicts behavior + expected waveform
 
 **Local parsers (no API needed):**
@@ -206,7 +205,7 @@ All TypeScript interfaces:
 
 All API calls use `response_format: { type: 'json_object' }` for structured output.
 
-API key is in `services/circuitAnalysis.ts`. When Cerebras credits arrive, swap to `gemma-4-31b` for sub-300ms inference.
+API key is in `services/circuitAnalysis.ts`. Uses Cerebras Gemma 4 for sub-300ms inference.
 
 ---
 
@@ -227,9 +226,9 @@ npm run dev
 
 This is I2 (project 2) of two hackathon projects:
 - **I1** — 3D spatial design app with live camera tracking + voice commands
-- **I2** (this) — Agentic hardware verification agent
+- **I2** (this) — Agentic hardware verification agent with 118-agent swarm
 
-Both use the same Groq API placeholder until Cerebras credits are issued.
+Both use Cerebras Gemma 4 exclusively for all LLM operations.
 
 The hybrid pipeline pattern is validated by:
 - **SINA** — 96.47% netlist accuracy (academic, EMNLP 2024)
