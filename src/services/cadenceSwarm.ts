@@ -22,8 +22,8 @@ const GEMMA_MODEL = 'gemma-4-31b'
 const GROQ_MODEL = 'llama-3.3-70b-versatile'
 
 // ponytail: Read keys from localStorage to support user override configurations without prop-drilling
-const getCerebrasKey = () => localStorage.getItem('cerebras_api_key') || ''
-const getGroqKey = () => localStorage.getItem('groq_api_key') || ''
+const getCerebrasKey = () => localStorage.getItem('cerebras_api_key') || (import.meta.env ? import.meta.env.VITE_CEREBRAS_API_KEY : '') || ''
+const getGroqKey = () => localStorage.getItem('groq_api_key') || (import.meta.env ? import.meta.env.VITE_GROQ_API_KEY : '') || ''
 
 // Helper to make LLM calls for swarm debate
 async function callSwarmLLM(prompt: string): Promise<{ content: string; latency: number; modelUsed: string }> {

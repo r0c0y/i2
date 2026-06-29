@@ -7,9 +7,9 @@ import type { Netlist, CircuitAnalysis, WaveformMeasurement, VerificationResult,
 // ══════════════════════════════════════════════════════════════
 
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions'
-const getCerebrasKey = () => localStorage.getItem('cerebras_api_key') || ''
+const getCerebrasKey = () => localStorage.getItem('cerebras_api_key') || (import.meta.env ? import.meta.env.VITE_CEREBRAS_API_KEY : '') || ''
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const getGroqKey = () => localStorage.getItem('groq_api_key') || ''
+const getGroqKey = () => localStorage.getItem('groq_api_key') || (import.meta.env ? import.meta.env.VITE_GROQ_API_KEY : '') || ''
 
 // Groq models (primary — actually working)
 const GROQ_TEXT = 'llama-3.3-70b-versatile'
