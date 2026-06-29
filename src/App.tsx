@@ -9,6 +9,9 @@ import { BringUpChecklist } from './components/BringUpChecklist';
 import { NetContextPanel } from './components/NetContextPanel';
 import { CadenceDashboard } from './components/CadenceDashboard';
 import { GlassIcon } from './components/GlassIcon';
+import { SiteHeader } from './components/SiteHeader';
+import { LandingHero } from './components/LandingHero';
+import { LandingStats, LandingSwarm, LandingFeatures, LandingStack, LandingCTA } from './components/LandingSections';
 import type {
   CircuitAnalysis,
   VerificationResult,
@@ -36,7 +39,7 @@ import {
 } from './services/circuitAnalysis';
 import './App.css';
 
-type DemoStage = 'intro' | 'schematic' | 'analyzing' | 'analysis' | 'waveform' | 'verified';
+type DemoStage = 'landing' | 'intro' | 'schematic' | 'analyzing' | 'analysis' | 'waveform' | 'verified';
 type SchematicTab = 'kicad' | 'image' | 'pdf' | 'paste' | 'demo';
 type ViewMode = 'circuitscope' | 'cadence';
 
@@ -48,7 +51,7 @@ function App() {
   const [verification, setVerification] = useState<VerificationResult | null>(null);
   const [waveform, setWaveform] = useState<WaveformMeasurement | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [stage, setStage] = useState<DemoStage>('intro');
+  const [stage, setStage] = useState<DemoStage>('landing');
   const [analysisTime, setAnalysisTime] = useState<number>(0);
   const [showNetlist, setShowNetlist] = useState(false);
   const [selectedComp, setSelectedComp] = useState<string | null>(null);
@@ -329,25 +332,56 @@ function App() {
 
   return (
     <div className="app">
-      {/* View Mode Toggle Rail */}
-      <div className="view-mode-toggle">
-        <button
-          id="mode-cadence"
-          className={`mode-btn ${viewMode === 'cadence' ? 'active' : ''}`}
-          onClick={() => setViewMode('cadence')}
-        >
-          <GlassIcon name="factory" size={13} variant={viewMode === 'cadence' ? 'purple' : 'gray'} />
-          Cadence — Assembly Line
-        </button>
-        <button
-          id="mode-circuitscope"
-          className={`mode-btn ${viewMode === 'circuitscope' ? 'active' : ''}`}
-          onClick={() => setViewMode('circuitscope')}
-        >
-          <GlassIcon name="bolt" size={13} variant={viewMode === 'circuitscope' ? 'purple' : 'gray'} />
-          CircuitScope — Hardware Debug
-        </button>
-      </div>
+      {/* Landing Page */}
+      {stage === 'landing' && (
+        <>
+          <SiteHeader />
+          <main className="pt-16">
+            <LandingHero />
+            <LandingStats />
+            <LandingSwarm />
+            <LandingFeatures />
+            <LandingStack />
+            <LandingCTA />
+            <div className="border-t border-border py-8 text-center text-sm text-muted-foreground">
+              <p>Ready to launch? Click "Launch swarm" button above to begin inspection.</p>
+              <button
+                id="launch"
+                onClick={() => {
+                  setStage('intro');
+                  setViewMode('cadence');
+                }}
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.03] active:scale-95"
+              >
+                Start Inspection
+              </button>
+            </div>
+          </main>
+        </>
+      )}
+
+      {/* App View (non-landing) */}
+      {stage !== 'landing' && (
+        <>
+          {/* View Mode Toggle Rail */}
+          <div className="view-mode-toggle">
+            <button
+              id="mode-cadence"
+              className={`mode-btn ${viewMode === 'cadence' ? 'active' : ''}`}
+              onClick={() => setViewMode('cadence')}
+            >
+              <GlassIcon name="factory" size={13} variant={viewMode === 'cadence' ? 'purple' : 'gray'} />
+              Cadence — Assembly Line
+            </button>
+            <button
+              id="mode-circuitscope"
+              className={`mode-btn ${viewMode === 'circuitscope' ? 'active' : ''}`}
+              onClick={() => setViewMode('circuitscope')}
+            >
+              <GlassIcon name="bolt" size={13} variant={viewMode === 'circuitscope' ? 'purple' : 'gray'} />
+              CircuitScope — Hardware Debug
+            </button>
+          </div>
 
       {/* ── Cadence view ── */}
       {viewMode === 'cadence' && <CadenceDashboard onTriggerProbeTest={handleTriggerProbeTest} />}
@@ -733,6 +767,8 @@ function App() {
             )}
           </main>
         </div>
+      )}
+       </>
       )}
     </div>
   );
