@@ -179,7 +179,7 @@ function App() {
         addKnowledgeEdge(circuitType, 'has_frequency', `${theoretical.calculatedFrequency.toFixed(1)}Hz`, 'agent_consensus');
       }
       addKnowledgeEdge(circuitType, 'circuit_type', theoretical.circuitType, 'agent_consensus');
-      addAgentLog('Knowledge Graph', 'system', `Circuit analysis saved to knowledge graph`, 'info');
+      addAgentLog('Knowledge Graph', `Circuit analysis saved to knowledge graph`, 'theory');
     } catch (e) {
       // Knowledge graph save failed, continue
     }
