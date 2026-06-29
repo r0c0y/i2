@@ -18,7 +18,7 @@ const CEREBRAS_TEXT = 'gemma-4-31b'
 const CIRCUIT_ANALYSIS_SCHEMA = {
   type: 'object',
   properties: {
-    netlist: { type: 'object' },
+    netlist: { type: 'object', additionalProperties: true },
     predictedBehavior: { type: 'string' },
     predictedWaveform: {
       type: 'object',
@@ -156,7 +156,7 @@ async function callAPI(opts: {
         body.reasoning_effort = reasoningEffort
       }
       if (jsonSchema) {
-        body.response_format = { type: 'json_schema', json_schema: { schema: jsonSchema } }
+        body.response_format = { type: 'json_schema', json_schema: { name: 'circuit_output', schema: jsonSchema } }
       } else if (jsonMode) {
         body.response_format = { type: 'json_object' }
       }

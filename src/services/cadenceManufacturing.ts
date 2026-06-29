@@ -42,7 +42,7 @@ async function callAPI(opts: {
       max_completion_tokens: maxTokens,
     }
     if (jsonSchema) {
-      body.response_format = { type: 'json_schema', json_schema: { schema: jsonSchema } }
+      body.response_format = { type: 'json_schema', json_schema: { name: 'cadence_output', schema: jsonSchema } }
     } else if (jsonMode) {
       body.response_format = { type: 'json_object' }
     }
@@ -223,7 +223,7 @@ const ALERT_SCHEMA = {
         type: 'object',
         properties: {
           name: { type: 'string', enum: ['stop_line', 'alert_supervisor', 'log_defect', 'quarantine_batch', 'adjust_machine'] },
-          arguments: { type: 'object' },
+          arguments: { type: 'object', additionalProperties: true },
         },
         required: ['name', 'arguments'],
         additionalProperties: false,

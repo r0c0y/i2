@@ -326,6 +326,28 @@ function TryItNow() {
             <div className={`lp-try-image-wrap${phase === 'scanning' ? ' lp-scan-active' : ''}`}>
               <img src={activeSrc} alt={`PCB under inspection: ${activeName}`} width={800} height={550} />
 
+              {/* Scanning grid overlay */}
+              {phase === 'scanning' && (
+                <div className="lp-try-scan-grid" aria-hidden="true">
+                  <div className="lp-try-scan-line-h" />
+                  <div className="lp-try-scan-line-v" />
+                  {[...Array(9)].map((_, i) => (
+                    <div key={`h${i}`} className="lp-try-scan-gridline-h" style={{ top: `${(i + 1) * 10}%` }} />
+                  ))}
+                  {[...Array(9)].map((_, i) => (
+                    <div key={`v${i}`} className="lp-try-scan-gridline-v" style={{ left: `${(i + 1) * 10}%` }} />
+                  ))}
+                  <div className="lp-try-scan-corners">
+                    <span className="lp-scan-corner tl" /><span className="lp-scan-corner tr" />
+                    <span className="lp-scan-corner bl" /><span className="lp-scan-corner br" />
+                  </div>
+                  <div className="lp-try-scan-status">
+                    <span className="lp-scan-pulse" />
+                    <span className="lp-scan-text">118 agents scanning</span>
+                  </div>
+                </div>
+              )}
+
               {phase === 'done' && result.boxes.map((b, i) => (
                 <div key={b.id} className={`lp-try-box lp-try-box-${sevClass(b.severity)}`} style={{ left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: `${b.h}%`, animationDelay: `${i * 0.12}s` }}>
                   <span className={`lp-try-box-label lp-try-box-label-${sevClass(b.severity)}`}>{b.label}</span>
