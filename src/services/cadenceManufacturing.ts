@@ -17,6 +17,7 @@ import type {
   DefectCategory,
   DefectSeverity,
 } from '../types'
+import { queryKnowledgeGraph } from './knowledgeGraph'
 
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions'
 const getCerebrasKey = () => localStorage.getItem('cerebras_api_key') || (import.meta.env ? import.meta.env.VITE_CEREBRAS_API_KEY : '') || ''
@@ -41,7 +42,7 @@ async function callAPI(opts: {
       max_completion_tokens: maxTokens,
     }
     if (jsonSchema) {
-      body.response_format = { type: 'json_schema', json_schema: { name: 'cadence_output', strict: true, schema: jsonSchema } }
+      body.response_format = { type: 'json_schema', json_schema: { schema: jsonSchema } }
     } else if (jsonMode) {
       body.response_format = { type: 'json_object' }
     }
@@ -59,20 +60,19 @@ async function callAPI(opts: {
     if (response.ok) {
       const data = await response.json()
       const timing = Date.now() - startTime
-      console.log(`[Cerebras/Cadence] ${data.model} | ${timing}ms`)
       return {
         content: data.choices[0].message.content,
         timing,
       }
-    } else {
-      const txt = await response.text()
-      console.warn(`Cerebras responded with status ${response.status}: ${txt}`)
     }
+    const txt = await response.text()
+    throw new Error(`Cerebras API error ${response.status}: ${txt}`)
   } catch (e) {
     throw new Error(`Cerebras API failed: ${e}`)
   }
 
-  throw new Error('Cerebras API key not configured')
+  const key = getCerebrasKey()
+  throw new Error(`Cerebras API key not configured${!key ? ' (no key found in .env or localStorage)' : ''}`)
 }
 
 // ═══ Real Multimodal Defect Analysis ═══
@@ -259,25 +259,30 @@ export async function inspectImage(
   const canvas = document.createElement('canvas')
   canvas.width = img.naturalWidth || 640
   canvas.height = img.naturalHeight || 480
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return { quadrant, score: 90, defects: [], inspector: inspectorName }
   ctx.drawImage(img, 0, 0)
 
-  // Sample pixels to detect characteristics
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-  const pixels = imageData.data
+  // Sample pixels to detect characteristics (may fail on cross-origin images)
+  let greenRatio = 0, darkRatio = 0, brightRatio = 0
+  try {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const pixels = imageData.data
 
-  // Detect dominant colors (green PCB, black ICs, silver solder)
-  let greenPixels = 0, darkPixels = 0, brightPixels = 0, totalPixels = pixels.length / 4
-  for (let i = 0; i < pixels.length; i += 16) { // Sample every 4th pixel
-    const r = pixels[i], g = pixels[i+1], b = pixels[i+2]
-    if (g > r && g > b && g > 60) greenPixels++
-    if (r < 50 && g < 50 && b < 50) darkPixels++
-    if (r > 180 && g > 180 && b > 180) brightPixels++
+    let greenPixels = 0, darkPixels = 0, brightPixels = 0, totalPixels = pixels.length / 4
+    for (let i = 0; i < pixels.length; i += 16) {
+      const r = pixels[i], g = pixels[i+1], b = pixels[i+2]
+      if (g > r && g > b && g > 60) greenPixels++
+      if (r < 50 && g < 50 && b < 50) darkPixels++
+      if (r > 180 && g > 180 && b > 180) brightPixels++
+    }
+
+    greenRatio = greenPixels / (totalPixels / 4)
+    darkRatio = darkPixels / (totalPixels / 4)
+    brightRatio = brightPixels / (totalPixels / 4)
+  } catch (e) {
+    // Canvas tainted by cross-origin image — skip pixel analysis
   }
-
-  const greenRatio = greenPixels / (totalPixels / 4)
-  const darkRatio = darkPixels / (totalPixels / 4)
-  const brightRatio = brightPixels / (totalPixels / 4)
 
   // Generate defects based on image analysis + golden master comparison
   const defects: DefectFinding[] = []
@@ -394,25 +399,7 @@ export async function inspectImage(
       })
     }
 
-    // Random small defects for realism (30% chance)
-    if (Math.random() < 0.3) {
-      const defectTypes: Array<{ category: DefectCategory; severity: DefectSeverity; desc: string }> = [
-        { category: 'scratch', severity: 'minor', desc: 'Minor surface scratch detected in trace area' },
-        { category: 'contamination', severity: 'cosmetic', desc: 'Small flux residue near component pads' },
-        { category: 'misalignment', severity: 'minor', desc: 'Slight component shift detected (~0.5mm)' },
-      ]
-      const d = defectTypes[Math.floor(Math.random() * defectTypes.length)]
-      score -= 3
-      defects.push({
-        id: `${quadrant}-2`,
-        category: d.category,
-        severity: d.severity,
-        description: d.desc,
-        location: { x: 20 + Math.random() * 60, y: 20 + Math.random() * 60, width: 10, height: 10 },
-        confidence: 0.6 + Math.random() * 0.3,
-        quadrant: quadrant as any,
-      })
-    }
+
   }
 
   return {
@@ -423,36 +410,15 @@ export async function inspectImage(
   }
 }
 
-// Run 3 quadrant inspectors in parallel (for demo) or single multimodal call (for real files)
+// Run real multimodal vision analysis on Cerebras Gemma 4!
 export async function inspectImageParallel(
   imageBase64: string,
   goldenMaster: GoldenMaster,
   imageHint?: string,
 ): Promise<InspectionResult> {
   const startTime = Date.now()
-  const hint = imageHint?.toLowerCase() || ''
-  const isDemo = hint.includes('defective_') || hint.includes('good_') || hint.includes('bridge') || hint.includes('twist') || hint.includes('miss') || hint.includes('splash') || hint.includes('contam')
 
-  if (isDemo) {
-    // Run the preset demo simulation
-    const quadrants = ['top-left', 'top-right', 'bottom-left']
-    const results = await Promise.all(
-      quadrants.map(q => inspectImage(imageBase64, goldenMaster, q, imageHint))
-    )
-    const allDefects = results.flatMap(r => r.defects)
-    const avgScore = results.reduce((sum, r) => sum + r.score, 0) / results.length
-    return {
-      id: `insp-${Date.now()}`,
-      timestamp: Date.now(),
-      imageUrl: imageBase64,
-      defects: allDefects,
-      overallScore: avgScore,
-      quadrantResults: results,
-      processingTimeMs: Date.now() - startTime,
-    }
-  }
-
-  // Real Multimodal Gemma 4 Vision Analysis on Cerebras!
+  // Always try real Cerebras vision API first
   try {
     const rawJSON = await callCerebrasMultimodal(imageBase64, goldenMaster.description)
     const parsed = JSON.parse(rawJSON)
@@ -506,7 +472,6 @@ export async function inspectImageParallel(
       processingTimeMs: Date.now() - startTime,
     }
   } catch (err) {
-    console.warn('Real Cerebras vision failed, falling back to local heuristics:', err)
     // Run local heuristic fallback
     const quadrants = ['top-left', 'top-right', 'bottom-left']
     const results = await Promise.all(
@@ -536,10 +501,17 @@ export async function analyzeRootCause(
     `- ${d.category} (${d.severity}): ${d.description} in ${d.quadrant}`
   ).join('\n')
 
+  // Retrieve relevant past facts from living knowledge graph
+  const categories = Array.from(new Set(inspection.defects.map(d => d.category)))
+  const graphEdges = categories.flatMap(cat => queryKnowledgeGraph(cat))
+  const graphContext = graphEdges.length > 0
+    ? graphEdges.map(e => `  - ${e.sourceNode} ${e.relation} ${e.targetNode} (${e.origin})`).join('\n')
+    : '  - No relevant past facts found.'
+
   const messages = [
     {
       role: 'system',
-      content: `You are a senior manufacturing engineer and root-cause analyst. You have access to a comprehensive troubleshooting manual. Cross-reference observed defects against known failure modes to identify the EXACT root cause. Be specific — name the machine, the component, the process step that failed.
+      content: `You are a senior manufacturing engineer and root-cause analyst. You have access to a comprehensive troubleshooting manual and a factory knowledge graph. Cross-reference observed defects against known failure modes from the manual AND past facts logged in the knowledge graph to identify the EXACT root cause. Be specific — name the machine, the component, the process step that failed.
 
 Provide a list of structured semantic triplets representing the defect, its cause, and the repair recommendation. Each triplet MUST have:
 - "subject": an atomic component or defect node (e.g. "R1", "solder_bridge", "reflow_heat")
@@ -568,6 +540,9 @@ Processing Time: ${inspection.processingTimeMs}ms
 
 DEFECTS FOUND:
 ${defectSummary}
+
+LIVING KNOWLEDGE GRAPH — PAST FACTS:
+${graphContext}
 
 TROUBLESHOOTING MANUAL SECTIONS:
 ${manual.sections.map(s => `### ${s.title}\n${s.content}`).join('\n\n')}

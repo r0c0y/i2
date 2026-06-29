@@ -1,8 +1,8 @@
-// ═══════════════════════════════════════════════════════════════
-//  Agent Orchestration Layer — 118-Agent Swarm Infrastructure
-// ═══════════════════════════════════════════════════════════════
-
 import type { AgentMessage, SwarmTelemetry } from '../types'
+
+const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions'
+const GEMMA_MODEL = 'gemma-4-31b'
+const getCerebrasKey = () => localStorage.getItem('cerebras_api_key') || (import.meta.env ? import.meta.env.VITE_CEREBRAS_API_KEY : '') || ''
 
 export interface Agent {
   id: string
@@ -53,17 +53,9 @@ export class AgentOrchestrator {
     }
   }
 
-  /**
-   * Initialize the 118-agent swarm:
-   * - 100 Inspector agents (grid scan)
-   * - 10 Specialist agents (debate & analysis)
-   * - 5 Dispatcher agents (action execution)
-   * - 3 Lead agents (coordination)
-   */
   initializeSwarm(): Agent[] {
     const agents: Agent[] = []
 
-    // 100 Area Inspectors
     for (let i = 0; i < 100; i++) {
       const agent: Agent = {
         id: `inspector-${i}`,
@@ -78,7 +70,6 @@ export class AgentOrchestrator {
       agents.push(agent)
     }
 
-    // 10 Specialist Agents
     const specializations = [
       'Solder Specialist',
       'IC Specialist',
@@ -105,7 +96,6 @@ export class AgentOrchestrator {
       agents.push(agent)
     }
 
-    // 5 Dispatcher Agents
     const dispatchRoles = ['Line Controller', 'Alert Dispatcher', 'Inventory Manager', 'Audit Archivist', 'Safety Monitor']
     for (let i = 0; i < 5; i++) {
       const agent: Agent = {
@@ -121,7 +111,6 @@ export class AgentOrchestrator {
       agents.push(agent)
     }
 
-    // 3 Lead Agents
     const leadRoles = ['QA Coordinator', 'Operations Director', 'Swarm Lead']
     for (let i = 0; i < 3; i++) {
       const agent: Agent = {
@@ -140,9 +129,6 @@ export class AgentOrchestrator {
     return agents
   }
 
-  /**
-   * Get idle agents matching a role/specialization
-   */
   getIdleAgents(role?: string, specialization?: string): Agent[] {
     return Array.from(this.pool.agents.values()).filter(agent => {
       if (agent.status !== 'idle') return false
@@ -152,9 +138,6 @@ export class AgentOrchestrator {
     })
   }
 
-  /**
-   * Queue work item for execution
-   */
   queueWork(type: WorkItem['type'], data: any, priority: 'high' | 'normal' | 'low' = 'normal'): WorkItem {
     const work: WorkItem = {
       id: `work-${Date.now()}-${Math.random()}`,
@@ -168,17 +151,12 @@ export class AgentOrchestrator {
     return work
   }
 
-  /**
-   * Dispatch all pending work to available agents
-   * Returns a promise that resolves when all work is done
-   */
   async processWorkQueue(): Promise<void> {
     const workTasks: Promise<void>[] = []
 
     while (this.pool.workQueue.length > 0) {
       const work = this.pool.workQueue[0]
 
-      // Find appropriate agent
       let agent: Agent | undefined
 
       if (work.type === 'inspect') {
@@ -192,12 +170,10 @@ export class AgentOrchestrator {
       }
 
       if (!agent) {
-        // Wait for an agent to become available
         await new Promise(res => setTimeout(res, 50))
         continue
       }
 
-      // Assign and process work
       work.assignedAgent = agent.id
       work.status = 'executing'
       work.startedAt = Date.now()
@@ -208,42 +184,28 @@ export class AgentOrchestrator {
       const workTask = this.executeWork(work, agent)
       workTasks.push(workTask)
 
-      // Update telemetry
       this.pool.telemetry.activeAgents = Array.from(this.pool.agents.values()).filter(a => a.status !== 'idle').length
     }
 
-    // Wait for all work to complete
     if (workTasks.length > 0) {
       await Promise.all(workTasks)
     }
   }
 
-  /**
-   * Execute a single work item on an agent
-   */
   private async executeWork(work: WorkItem, agent: Agent): Promise<void> {
     const startTime = Date.now()
 
     try {
-      // Simulate agent thinking/processing time based on work type
-      let processingTime = 50
-      if (work.type === 'analyze' || work.type === 'debate') {
-        processingTime = 100 + Math.random() * 200
-      } else if (work.type === 'inspect') {
-        processingTime = 30 + Math.random() * 70
-      }
-
-      // Create abort controller for this work
       const abortController = new AbortController()
       this.abortControllers.set(work.id, abortController)
 
       agent.status = 'thinking'
-      await new Promise(res => setTimeout(res, processingTime))
 
-      // Simulate work result
+      const result = await this.callAgentLLM(work, agent, abortController.signal)
+
       work.result = {
         success: true,
-        data: work.data,
+        data: result,
         processedAt: Date.now(),
       }
 
@@ -254,12 +216,10 @@ export class AgentOrchestrator {
       agent.latency.push(latency)
       agent.tasksCompleted++
 
-      // Keep only last 100 latency samples
       if (agent.latency.length > 100) {
         agent.latency.shift()
       }
 
-      // Update telemetry
       this.pool.telemetry.completedQueries++
       this.pool.telemetry.averageTTFT = Math.round(
         agent.latency.reduce((a, b) => a + b, 0) / agent.latency.length * 0.15,
@@ -277,9 +237,62 @@ export class AgentOrchestrator {
     }
   }
 
-  /**
-   * Get current pool telemetry
-   */
+  private async callAgentLLM(work: WorkItem, agent: Agent, signal?: AbortSignal): Promise<string> {
+    const systemPrompt = `You are ${agent.name}, a ${agent.role} agent in a PCB manufacturing inspection swarm. Your specialization is ${agent.specialization || 'general inspection'}. Respond concisely with your findings in JSON format.`
+
+    let userPrompt = ''
+    switch (work.type) {
+      case 'inspect':
+        userPrompt = `Inspect grid zone ${agent.specialization}. ${work.data.imageHint ? `PCB context: ${work.data.imageHint}.` : ''} Report any solder defects, component misalignment, trace damage, or contamination in your zone. Respond: {"zone":"${agent.specialization}","status":"pass|fail","findings":[{"type":"defect_type","severity":"low|medium|high","description":"..."}],"confidence":0.95}`
+        break
+      case 'analyze':
+        userPrompt = `As ${agent.specialization}, analyze these defects: ${work.data.defects || 'N/A'}. Reference manual: ${work.data.manual || 'N/A'}. Provide expert diagnosis. Respond: {"specialization":"${agent.specialization}","diagnosis":"...","recommendations":["..."],"confidence":0.95}`
+        break
+      case 'dispatch':
+        userPrompt = `Dispatch action for: ${JSON.stringify(work.data)}. Choose: stop_line, alert_supervisor, quarantine_batch, or log_analysis. Respond: {"action":"...","reason":"...","parameters":{}}`
+        break
+      default:
+        userPrompt = `Process work item: ${JSON.stringify(work.data)}`
+    }
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ]
+
+    try {
+      const response = await fetch(CEREBRAS_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getCerebrasKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: GEMMA_MODEL,
+          messages,
+          temperature: 0.4,
+          max_completion_tokens: 500,
+          response_format: { type: 'json_object' },
+        }),
+        signal,
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return data.choices[0].message.content
+      } else {
+        const errText = await response.text()
+        if (response.status === 401) {
+          throw new Error('Invalid Cerebras API key. Set it in Dashboard settings.')
+        }
+        throw new Error(`Cerebras API ${response.status}: ${errText}`)
+      }
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw e
+      throw e
+    }
+  }
+
   getTelemetry(): SwarmTelemetry {
     const activeAgents = Array.from(this.pool.agents.values()).filter(a => a.status !== 'idle')
     const totalTasks = this.pool.completedWork.length
@@ -293,23 +306,14 @@ export class AgentOrchestrator {
     return this.pool.telemetry
   }
 
-  /**
-   * Get all agents
-   */
   getAgents(): Agent[] {
     return Array.from(this.pool.agents.values())
   }
 
-  /**
-   * Get agent by ID
-   */
   getAgent(id: string): Agent | undefined {
     return this.pool.agents.get(id)
   }
 
-  /**
-   * Get pool status
-   */
   getPoolStatus() {
     return {
       totalAgents: this.pool.agents.size,
@@ -320,25 +324,17 @@ export class AgentOrchestrator {
     }
   }
 
-  /**
-   * Cancel all work
-   */
   cancelAllWork(): void {
     this.abortControllers.forEach(controller => controller.abort())
     this.abortControllers.clear()
 
-    // Reset all agents to idle
     this.pool.agents.forEach(agent => {
       agent.status = 'idle'
     })
 
-    // Clear work queue
     this.pool.workQueue = []
   }
 
-  /**
-   * Get work queue status
-   */
   getWorkQueueStatus() {
     return {
       pending: this.pool.workQueue.filter(w => w.status === 'pending').length,
@@ -348,7 +344,6 @@ export class AgentOrchestrator {
   }
 }
 
-// Singleton instance
 let orchestrator: AgentOrchestrator | null = null
 
 export function getOrchestrator(): AgentOrchestrator {

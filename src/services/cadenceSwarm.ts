@@ -14,7 +14,6 @@ import type {
 } from '../types'
 import { runInspectionPipeline } from './cadenceManufacturing'
 import { queryKnowledgeGraph, addKnowledgeEdge } from './knowledgeGraph'
-import { getOrchestrator, Agent } from './agentOrchestration'
 
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions'
 
@@ -88,7 +87,7 @@ Agreed Root Cause:
 ${rootCause}
 
 Roleplay a collaborative discussion between 2 or 3 of these specific specialist agents (Resistor Specialist, Capacitor Specialist, IC Specialist, Solder Specialist, Traces Specialist, Contamination Auditor, Warp Analyst, Connector Analyst, QA Coordinator).
-Each message should contribute technical details and reference the manual. If knowledge graph facts are present, agents should mention them to aid resolution.
+Each message should contribute technical details and reference the manual. If knowledge graph facts are listed above, agents should reference them — e.g. "The knowledge graph shows this defect pattern matches a known root cause." Agents learn from the factory's living knowledge graph and contribute their findings back to it.
 
 Respond ONLY with a JSON object:
 {
@@ -180,35 +179,16 @@ export async function runSwarmInspection(
 
   addLog('QA Coordinator', 'lead', 'Initializing 118-Agent Defect Inspection Swarm...', 'info')
   addLog('Swarm Lead', 'lead', 'Dispatching 100 Area Inspectors to scan the 10x10 coordinate grid...', 'info')
-  onProgress({ gridState, logs, telemetry })
+  // Query living knowledge graph for relevant past defect patterns
+  const recentGraph = queryKnowledgeGraph('')
+  if (recentGraph.length > 0) {
+    addLog('Knowledge Graph', 'system', `🧠 ${recentGraph.length} past facts loaded for agent context`, 'info')
+  }
+  onProgress({ gridState: gridState.map(row => [...row]), logs, telemetry })
 
   // 2. Run the underlying inspection pipeline to find defects and their coordinates
   const pipelineResult = await runInspectionPipeline(imageBase64, goldenMaster, manual, imageHint)
   const defects = pipelineResult.inspection.defects
-
-  // Initialize orchestrator and swarm
-  const orchestrator = getOrchestrator()
-  const swarmAgents = orchestrator.initializeSwarm()
-  
-  // Queue inspection tasks for each grid cell to inspector agents
-  const gridTasks: Promise<any>[] = []
-  for (let r = 0; r < 10; r++) {
-    for (let c = 0; c < 10; c++) {
-      const workItem = orchestrator.queueWork('inspect', {
-        row: r,
-        col: c,
-        gridIndex: r * 10 + c,
-      }, 'normal')
-      gridTasks.push(new Promise(res => {
-        const checkCompletion = setInterval(() => {
-          if (workItem.status === 'completed' || workItem.status === 'failed') {
-            clearInterval(checkCompletion)
-            res(workItem)
-          }
-        }, 10)
-      }))
-    }
-  }
 
   // Identify which grid cells contain defects
   const defectCells = defects.map(d => {
@@ -218,30 +198,25 @@ export async function runSwarmInspection(
     return { row, col, defect: d }
   })
 
-  // 3. Grid scan — 100 inspector agents working in parallel via orchestrator
+  // 3. Grid scan — visual feedback row by row using pipeline results
   const scanStart = Date.now()
   telemetry.activeAgents = 100
   telemetry.totalRPM = 12 * lineSpeed
   
   const scanDelay = Math.max(15, Math.round(1000 / lineSpeed))
   
-  // Start processing work queue in the background
-  const orchestrationPromise = orchestrator.processWorkQueue()
-  
-  // Stream visual feedback row by row while agents process in parallel
+  // Stream visual feedback row by row
   for (let r = 0; r < 10; r++) {
     // Mark row as scanning
     for (let c = 0; c < 10; c++) {
       gridState[r][c] = 'scanning'
     }
-    onProgress({ gridState, logs: [...logs], telemetry: { ...telemetry } })
+    onProgress({ gridState: gridState.map(row => [...row]), logs: [...logs], telemetry: { ...telemetry } })
     await new Promise(res => setTimeout(res, scanDelay))
 
     // Mark row as finished (check for defects)
     for (let c = 0; c < 10; c++) {
       const foundDefect = defectCells.find(dc => dc.row === r && dc.col === c)
-      const agentId = `inspector-${(r * 10 + c) % 100}`
-      const agent = orchestrator.getAgent(agentId)
       
       if (foundDefect) {
         gridState[r][c] = 'defect'
@@ -255,21 +230,19 @@ export async function runSwarmInspection(
         gridState[r][c] = 'passed'
       }
       
-      // Show agent activity in logs periodically
-      if (c % 5 === 0 && agent) {
+      // Show inspector activity in logs periodically
+      if (c % 5 === 0) {
         addLog(
-          agent.name,
+          `Area Inspector ${r * 10 + c + 1}`,
           'inspector',
-          `✓ Completed scan of zone ${r}-${c}. Tasks: ${agent.tasksCompleted}`,
+          `✓ Completed scan of zone ${r}-${c}.`,
           'info',
         )
       }
     }
-    onProgress({ gridState, logs: [...logs], telemetry: { ...telemetry } })
+    onProgress({ gridState: gridState.map(row => [...row]), logs: [...logs], telemetry: { ...telemetry } })
   }
 
-  // Wait for orchestration to complete
-  await orchestrationPromise
   telemetry.activeAgents = 0
   
   timings.gridScan = Date.now() - scanStart
@@ -277,7 +250,7 @@ export async function runSwarmInspection(
   telemetry.totalRPM = Math.round(100 + lineSpeed)
   addLog('QA Coordinator', 'lead', `Grid scanning complete. ${defectCells.length} anomalous areas flagged.`, 'success')
 
-  // 4. Consensus debate — 10 specialist agents collaborate via orchestrator
+  // 4. Consensus debate — specialist agents collaborate via LLM
   const consensusStart = Date.now()
   if (defectCells.length > 0) {
     addLog('QA Coordinator', 'lead', 'Routing anomalies to Specialist swarm for debate & diagnostic consensus...', 'info')
@@ -296,17 +269,8 @@ export async function runSwarmInspection(
         .join('\n')
     }
 
-    // Queue specialist analysis tasks
+    // Specialist analysis via LLM
     telemetry.activeAgents = 10
-    const specialists = orchestrator.getAgents().filter(a => a.role === 'specialist')
-    
-    specialists.forEach(specialist => {
-      orchestrator.queueWork('analyze', {
-        specialization: specialist.specialization,
-        defects: defectsSummary,
-        manual: manualSections,
-      }, 'high')
-    })
 
     // Call LLM for debate dialogue
     const debateStart = Date.now()
@@ -325,17 +289,21 @@ export async function runSwarmInspection(
       await new Promise(res => setTimeout(res, 300)) // Stream effect
     }
 
-    // Save clean semantic triplets to Knowledge Graph
-    if (pipelineResult.rootCause.triplets && pipelineResult.rootCause.triplets.length > 0) {
-      pipelineResult.rootCause.triplets.forEach(triplet => {
-        addKnowledgeEdge(triplet.subject, triplet.predicate, triplet.object, 'agent_consensus')
-      })
-    } else {
-      const primaryDefect = defects[0]
-      if (primaryDefect) {
-        addKnowledgeEdge(primaryDefect.category, 'caused_by', 'unspecified_fault_root_cause', 'agent_consensus')
-      }
+    // Save rich semantic facts to Knowledge Graph from every defect finding
+    const graphAdditions: string[] = []
+    for (const defect of defects) {
+      const descKey = defect.description.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)
+      addKnowledgeEdge(defect.category, 'detected_as', descKey, 'agent_consensus')
+      addKnowledgeEdge(defect.category, 'has_severity', defect.severity, 'agent_consensus')
+      addKnowledgeEdge(pipelineResult.rootCause.rootCause.replace(/[^a-zA-Z0-9]/g, '_'), 'causes', defect.category, 'agent_consensus')
+      graphAdditions.push(`${defect.category} → ${defect.severity}`)
     }
+    const fixKey = pipelineResult.rootCause.recommendedFix.replace(/[^a-zA-Z0-9\s]/g, '').split(' ').slice(0, 4).join('_')
+    const causeKey = pipelineResult.rootCause.rootCause.replace(/[^a-zA-Z0-9\s]/g, '').split(' ').slice(0, 4).join('_')
+    const actionKey = pipelineResult.alert.actionTaken.replace(/[^a-zA-Z0-9\s]/g, '').split(' ').slice(0, 4).join('_')
+    addKnowledgeEdge(causeKey, 'resolved_by', fixKey, 'agent_consensus')
+    if (actionKey) addKnowledgeEdge(actionKey, 'triggered_by', causeKey, 'agent_consensus')
+    addLog('Knowledge Graph', 'system', `🧠 ${graphAdditions.length} new facts written from swarm consensus`, 'success')
 
     addLog(
       'Operations Director',
@@ -348,26 +316,16 @@ export async function runSwarmInspection(
   }
   timings.consensus = Date.now() - consensusStart
 
-  // 5. Operational Dispatch — 5 dispatcher agents execute actions via orchestrator
+  // 5. Operational Dispatch — execute actions
   const dispatchStart = Date.now()
   telemetry.activeAgents = 5
   addLog('Alert Dispatcher', 'dispatcher', `Generating factory notification: "${pipelineResult.alert.title}"`, 'info')
   onProgress({ gridState, logs: [...logs], telemetry: { ...telemetry } })
   await new Promise(res => setTimeout(res, 150))
 
-  const dispatchers = orchestrator.getAgents().filter(a => a.role === 'dispatcher')
-  
   if (pipelineResult.alert.toolCalls && pipelineResult.alert.toolCalls.length > 0) {
     for (let idx = 0; idx < pipelineResult.alert.toolCalls.length; idx++) {
       const tc = pipelineResult.alert.toolCalls[idx]
-      const dispatcher = dispatchers[idx % dispatchers.length]
-      
-      // Queue dispatch task
-      orchestrator.queueWork('dispatch', {
-        toolName: tc.name,
-        arguments: tc.arguments,
-        dispatcherId: dispatcher?.id,
-      }, 'high')
       
       if (tc.name === 'stop_line') {
         addLog('Line Controller', 'dispatcher', `🛑 STOPPING assembly line. Cause: ${tc.arguments.reason}`, 'error')

@@ -49,6 +49,7 @@ export function KnowledgeGraphViewer({
 
   // Synchronize incoming edges to node/link physics structures
   useEffect(() => {
+    if (!edges || !Array.isArray(edges)) return
     const existingNodes = new Map<string, Node>()
     nodesRef.current.forEach(n => existingNodes.set(n.id, n))
 
@@ -169,7 +170,7 @@ export function KnowledgeGraphViewer({
 
       // ── Physics: 2. Attraction (Spring Force along edges) ──
       const links: Link[] = []
-      edges.forEach(edge => {
+      if (edges && Array.isArray(edges)) for (const edge of edges) {
         const source = nodes.find(n => n.id === edge.sourceNode.toLowerCase().trim())
         const target = nodes.find(n => n.id === edge.targetNode.toLowerCase().trim())
         if (source && target) {
@@ -179,7 +180,7 @@ export function KnowledgeGraphViewer({
           const dy = target.y - source.y
           const dist = Math.sqrt(dx * dx + dy * dy) || 1
           const restLength = linkDistance
-          const k = 0.04 // Spring constant
+          const k = 0.04
           const force = k * (dist - restLength)
           const fx = (dx / dist) * force
           const fy = (dy / dist) * force
@@ -189,7 +190,7 @@ export function KnowledgeGraphViewer({
           target.vx -= fx
           target.vy -= fy
         }
-      })
+      }
 
       // ── Physics: 3. Gravity and Updates ──
       nodes.forEach(node => {
@@ -322,7 +323,7 @@ export function KnowledgeGraphViewer({
       cancelAnimationFrame(animationFrameRef.current)
       window.removeEventListener('resize', handleResize)
     }
-  }, [edges, hoveredNode, searchQuery])
+  }, [edges, hoveredNode, searchQuery, linkDistance, repulsionStrength, gravityStrength])
 
   // Mouse Interaction handlers
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -375,7 +376,7 @@ export function KnowledgeGraphViewer({
   }
 
   return (
-    <div className="canvas-graph-container" style={{ width: '100%', height: '360px', position: 'relative', background: '#030305', borderRadius: '6px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+    <div className="canvas-graph-container" style={{ width: '100%', height: '100%', position: 'relative', background: '#030305', borderRadius: '6px', border: '1px solid var(--border)', overflow: 'hidden' }}>
       <canvas
         ref={canvasRef}
         onMouseMove={handleMouseMove}

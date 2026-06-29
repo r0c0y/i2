@@ -107,23 +107,41 @@ html, body, #root {
    VIEW MODE TOGGLE — top rail
 ══════════════════════════════════════════════════════════ */
 
-.view-mode-toggle {
+.app-topnav {
   display: flex;
-  gap: 0;
+  align-items: center;
+  justify-content: space-between;
   padding: 0 var(--sp-6);
-  background: rgba(6, 6, 10, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border);
+  height: 48px;
+  background: oklch(0.165 0.022 285 / 0.7);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid oklch(0.33 0.03 285 / 0.6);
   z-index: 100;
   flex-shrink: 0;
 }
-
-.mode-btn {
+.app-topnav-left { display: flex; align-items: center; }
+.app-topnav-home {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 16px 0 8px; height: 40px;
+  border: none; cursor: pointer; background: none;
+  margin-right: 0.5rem;
+  border-right: 1px solid oklch(0.33 0.03 285 / 0.5);
+}
+.app-topnav-home:hover { opacity: 0.8; }
+.app-topnav-logo {
+  font-size: 14px; font-weight: 700; letter-spacing: 0.06em;
+  font-family: 'JetBrains Mono', monospace; text-transform: uppercase;
+  background: linear-gradient(135deg, var(--text) 40%, var(--accent-bright) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.app-topnav-tabs { display: flex; align-items: center; gap: 2px; }
+.app-topnav-tab {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-5);
+  padding: var(--sp-2) var(--sp-4);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -137,13 +155,78 @@ html, body, #root {
   white-space: nowrap;
 }
 
-.mode-btn:hover {
+.app-topnav-tab:hover {
   color: var(--text-muted);
 }
 
-.mode-btn.active {
+.app-topnav-tab.active {
   color: var(--accent-bright);
   border-bottom-color: var(--accent);
+}
+
+/* ══════════════════════════════════════════════════════════
+   KNOWLEDGE GRAPH — Full Screen
+══════════════════════════════════════════════════════════ */
+
+.knowledge-fullscreen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.knowledge-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+
+.knowledge-toolbar h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.knowledge-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.knowledge-search-input {
+  padding: 6px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 240px;
+}
+
+.knowledge-search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.knowledge-search-input::placeholder {
+  color: var(--text-dim);
+}
+
+.knowledge-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -156,7 +239,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow-y: auto;
   background: var(--bg);
 }
 
@@ -476,6 +559,88 @@ html, body, #root {
   line-height: 1.5;
 }
 
+.circuit-usecase {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.circuit-industry-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.industry-automotive {
+  background: rgba(251, 146, 60, 0.12);
+  border: 1px solid rgba(251, 146, 60, 0.25);
+  color: #fb923c;
+}
+
+.industry-medical {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+}
+
+.industry-power {
+  background: rgba(34, 211, 238, 0.12);
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  color: #22d3ee;
+}
+
+.industry-industrial {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  color: #fbbf24;
+}
+
+.industry-consumer {
+  background: rgba(167, 139, 250, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  color: #a78bfa;
+}
+
+.circuit-card.circuit-automotive {
+  border-left: 3px solid #fb923c;
+}
+
+.circuit-card.circuit-medical {
+  border-left: 3px solid #ef4444;
+}
+
+.circuit-card.circuit-power {
+  border-left: 3px solid #22d3ee;
+}
+
+.circuit-card.circuit-industrial {
+  border-left: 3px solid #fbbf24;
+}
+
+/* ═══ Real-World Case Studies ═══ */
+
+.case-studies-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+  width: 100%;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 720px) {
+  .case-studies-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* Primary CTA button */
 .btn-analyze {
   display: inline-flex;
@@ -703,7 +868,7 @@ html, body, #root {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
   animation: wsReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -719,10 +884,10 @@ html, body, #root {
   justify-content: space-between;
   padding: 0 var(--sp-6);
   height: 52px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(8, 8, 14, 0.9);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid oklch(0.33 0.03 285 / 0.6);
+  background: oklch(0.165 0.022 285 / 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   flex-shrink: 0;
 }
 
@@ -733,10 +898,12 @@ html, body, #root {
 }
 
 .logo-text {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: -0.4px;
-  background: linear-gradient(135deg, var(--text) 50%, var(--accent-bright));
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--text) 40%, var(--accent-bright) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -744,16 +911,19 @@ html, body, #root {
 
 .header-divider {
   color: var(--border-mid);
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 300;
+  opacity: 0.5;
 }
 
 .header-circuit {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .header-right {
@@ -787,22 +957,23 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 14px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  padding: 4px 12px;
+  background: oklch(0.2 0.025 285 / 0.3);
+  border: 1px solid oklch(0.33 0.03 285 / 0.6);
   border-radius: var(--r-pill);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-dim);
+  backdrop-filter: blur(8px);
   transition: all 0.35s ease;
 }
 
 .speed-badge[data-active='true'] {
-  background: rgba(52, 211, 153, 0.07);
-  border-color: rgba(52, 211, 153, 0.2);
+  background: oklch(0.82 0.16 162 / 0.08);
+  border-color: oklch(0.82 0.16 162 / 0.3);
   color: var(--green);
-  box-shadow: 0 0 16px rgba(52, 211, 153, 0.1);
+  box-shadow: 0 0 16px oklch(0.82 0.16 162 / 0.15);
 }
 
 .speed-label {
@@ -820,8 +991,8 @@ html, body, #root {
   align-items: center;
   gap: 8px;
   padding: 8px var(--sp-6);
-  background: var(--accent-dim);
-  border-bottom: 1px solid var(--border-glow);
+  background: oklch(0.165 0.022 285 / 0.5);
+  border-bottom: 1px solid oklch(0.33 0.03 285 / 0.6);
   font-size: 12px;
   font-weight: 600;
   color: var(--accent-bright);
@@ -1299,7 +1470,7 @@ html, body, #root {
   :root { font-size: 14px; }
 
   .view-mode-toggle { padding: 0 var(--sp-4); gap: 0; overflow-x: auto; }
-  .mode-btn { padding: var(--sp-2) var(--sp-3); font-size: 12px; }
+  .app-topnav-tab { padding: var(--sp-2) var(--sp-3); font-size: 12px; }
 
   .intro-content { padding: 0 var(--sp-5); }
   .intro-title { font-size: 28px !important; letter-spacing: -0.8px; }

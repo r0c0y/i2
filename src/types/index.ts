@@ -85,6 +85,9 @@ export interface DemoCircuit {
   name: string
   description: string
   icon: string
+  industry?: 'automotive' | 'medical' | 'industrial' | 'power' | 'consumer'
+  useCase?: string
+  failureScenario?: string
   netlist: Netlist
   matchingWaveform: WaveformAnalysis
   mismatchedWaveform: WaveformAnalysis

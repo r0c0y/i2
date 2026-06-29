@@ -13,6 +13,16 @@ const DEFAULT_SEEDS: GraphEdge[] = [
   { id: 'seed-8', sourceNode: 'misalignment', relation: 'resolved_by', targetNode: 'Vision System Calibration', timestamp: Date.now(), origin: 'human_override' },
   { id: 'seed-9', sourceNode: 'polarity', relation: 'caused_by', targetNode: 'Feeder Reel Loaded Backwards', timestamp: Date.now(), origin: 'human_override' },
   { id: 'seed-10', sourceNode: 'polarity', relation: 'resolved_by', targetNode: 'Feeder Reload & Reel Visual Audit', timestamp: Date.now(), origin: 'human_override' },
+  { id: 'seed-11', sourceNode: 'open_circuit', relation: 'caused_by', targetNode: 'Via Fracture from Thermal Stress', timestamp: Date.now(), origin: 'agent_consensus' },
+  { id: 'seed-12', sourceNode: 'open_circuit', relation: 'resolved_by', targetNode: 'Via Repair & Reflow Cycle', timestamp: Date.now(), origin: 'agent_consensus' },
+  { id: 'seed-13', sourceNode: 'op_amp_oscillation', relation: 'caused_by', targetNode: 'Insufficient Phase Margin', timestamp: Date.now(), origin: 'agent_consensus' },
+  { id: 'seed-14', sourceNode: 'op_amp_oscillation', relation: 'resolved_by', targetNode: 'Add Compensation Capacitor', timestamp: Date.now(), origin: 'agent_consensus' },
+  { id: 'seed-15', sourceNode: 'ground_bounce', relation: 'caused_by', targetNode: 'Excessive di/dt in Return Path', timestamp: Date.now(), origin: 'agent_consensus' },
+  { id: 'seed-16', sourceNode: 'ground_bounce', relation: 'resolved_by', targetNode: 'Reduce Inductance & Add Decoupling', timestamp: Date.now(), origin: 'agent_consensus' },
+  { id: 'seed-17', sourceNode: 'decoupling_missing', relation: 'caused_by', targetNode: 'BOM Omission / Value Skipped', timestamp: Date.now(), origin: 'agent_consensus' },
+  { id: 'seed-18', sourceNode: 'decoupling_missing', relation: 'resolved_by', targetNode: 'Add MLCC per IC per Power Pin', timestamp: Date.now(), origin: 'agent_consensus' },
+  { id: 'seed-19', sourceNode: 'solder_bridge', relation: 'related_to', targetNode: 'open_circuit', timestamp: Date.now(), origin: 'human_override' },
+  { id: 'seed-20', sourceNode: 'cold_joint', relation: 'related_to', targetNode: 'intermittent_failure', timestamp: Date.now(), origin: 'human_override' },
 ]
 
 export function getKnowledgeGraph(): GraphEdge[] {
@@ -54,7 +64,7 @@ export function addKnowledgeEdge(
   }
 
   graph.push(newEdge)
-  localStorage.setItem(GRAPH_STORAGE_KEY, JSON.stringify(graph))
+  try { localStorage.setItem(GRAPH_STORAGE_KEY, JSON.stringify(graph)) } catch (e) { /* quota exceeded */ }
   return newEdge
 }
 

@@ -36,7 +36,7 @@ function drawChannel(
   const tToX = (t: number) => padL + plotW * ((t - tStart) / (tEnd - tStart))
 
   // Offset each channel vertically if multi-channel
-  const channelOffset = index * 0 // For now, overlay; can add vertical offset later
+  const channelOffset = index * (plotH / 8) // Offset each channel vertically
 
   // Glow
   ctx.strokeStyle = color + '33'

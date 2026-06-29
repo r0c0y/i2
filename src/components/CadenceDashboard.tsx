@@ -20,18 +20,18 @@ import './CadenceDashboard.css'
 
 const DEMO_IMAGES = {
   good: [
-    { src: '/demo-pcb/good_1.jpg', label: 'PCB Rev A — Clean Assembly', source: 'Gen 1' },
-    { src: '/demo-pcb/good_2.jpg', label: 'PCB Rev B — All Components OK', source: 'Gen 2' },
-    { src: '/demo-pcb/good_3.jpg', label: 'PCB Rev C — Passed QC', source: 'Gen 3' },
-    { src: '/demo-pcb/good_4.jpg', label: 'PCB Rev D — Reference Board', source: 'Gen 4' },
+    { src: '/demo-pcb/good_1.jpg', label: 'PCB Rev A — Clean Assembly', source: 'Automotive ECU reference — all passives seated, no defects' },
+    { src: '/demo-pcb/good_2.jpg', label: 'PCB Rev B — All Components OK', source: 'Medical monitor board — verified 100% placement accuracy' },
+    { src: '/demo-pcb/good_3.jpg', label: 'PCB Rev C — Passed QC', source: 'Industrial PLC I/O board — meets IPC-A-610 Class 2' },
+    { src: '/demo-pcb/good_4.jpg', label: 'PCB Rev D — Reference Board', source: 'Power supply module — golden sample for AOI comparison' },
   ],
   defective: [
-    { src: '/demo-pcb/defective_1.jpg', label: 'Solder Bridge — Critical', source: 'Bridge' },
-    { src: '/demo-pcb/defective_2.jpg', label: 'Missing Resistor R3', source: 'Missing' },
-    { src: '/demo-pcb/defective_3.jpg', label: 'Cold Joint on C2', source: 'Cold' },
-    { src: '/demo-pcb/defective_4.jpg', label: 'Surface Scratches', source: 'Scratch' },
-    { src: '/demo-pcb/defective_5.jpg', label: 'IC U2 Misaligned', source: 'Misalign' },
-    { src: '/demo-pcb/defective_6.jpg', label: 'Flux Contamination', source: 'Contam' },
+    { src: '/demo-pcb/defective_1.jpg', label: 'Solder Bridge — Critical', source: 'Automotive: Short between Q5 gate-pins → ECU failure at 10k miles' },
+    { src: '/demo-pcb/defective_2.jpg', label: 'Missing Resistor R3', source: 'Medical: Omitted feedback divider → 5V rail output 8.2V, board dead' },
+    { src: '/demo-pcb/defective_3.jpg', label: 'Cold Joint on C2', source: 'Industrial: Vibration cracked C2 solder → intermittent sensor dropout' },
+    { src: '/demo-pcb/defective_4.jpg', label: 'Surface Scratches', source: 'Consumer: Handling scratch exposes copper — field return risk' },
+    { src: '/demo-pcb/defective_5.jpg', label: 'IC U2 Misaligned', source: 'Automotive: CAN transceiver shifted 8° → bus communication failures' },
+    { src: '/demo-pcb/defective_6.jpg', label: 'Flux Contamination', source: 'Power: Conductive residue across HV DC bus — latent arc failure' },
   ],
 }
 
@@ -159,7 +159,8 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
       const canvas = document.createElement('canvas')
       canvas.width = img.naturalWidth
       canvas.height = img.naturalHeight
-      const ctx = canvas.getContext('2d')!
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { setStatusMsg('Canvas not available'); return }
       ctx.drawImage(img, 0, 0)
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
       processImageSwarm(dataUrl, src)
@@ -379,6 +380,10 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
             <span className="stat-label">Defects</span>
             <span className="stat-value">{defectsFound}</span>
           </div>
+          <div className="stat-pill yield">
+            <span className="stat-label">Yield</span>
+            <span className="stat-value">{totalInspections > 0 ? ((totalInspections - defectsFound) / totalInspections * 100).toFixed(1) : '—'}%</span>
+          </div>
           {latestResult && (
             <div className="stat-pill timing">
               <span className="stat-label">Pipeline Speed</span>
@@ -386,6 +391,34 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
             </div>
           )}
         </div>
+      </div>
+
+      {/* Real-World Impact Banner */}
+      <div className="realworld-banner">
+        <div className="rw-sector">
+          <span className="rw-icon">🚗</span>
+          <span>Automotive ECU</span>
+          <span className="rw-fail">~$2,400/repair</span>
+        </div>
+        <div className="rw-divider" />
+        <div className="rw-sector">
+          <span className="rw-icon">🏥</span>
+          <span>Medical Patient Monitor</span>
+          <span className="rw-fail">Patient safety risk</span>
+        </div>
+        <div className="rw-divider" />
+        <div className="rw-sector">
+          <span className="rw-icon">🏭</span>
+          <span>Industrial PLC</span>
+          <span className="rw-fail">$50k/hr downtime</span>
+        </div>
+        <div className="rw-divider" />
+        <div className="rw-sector">
+          <span className="rw-icon">⚡</span>
+          <span>Power Supply Module</span>
+          <span className="rw-fail">Latent field failure</span>
+        </div>
+        <span className="rw-badge">CGHD1152 Inspired</span>
       </div>
 
       {/* Controls */}
@@ -407,6 +440,17 @@ export function CadenceDashboard({ onTriggerProbeTest }: CadenceDashboardProps) 
           disabled={isProcessing}
         >
           {streamIntervalRef.current ? '⏹ Stop Stream' : '▶ Auto Stream'}
+        </button>
+        <button 
+          className="cadence-btn"
+          style={{ borderColor: 'rgba(167,139,250,0.3)', color: '#a78bfa' }}
+          onClick={() => {
+            // Switch to CircuitScope for hardware debug
+            window.dispatchEvent(new CustomEvent('switchToCircuitScope'));
+          }}
+          disabled={isProcessing}
+        >
+          ⚡ CircuitScope
         </button>
         <button className="cadence-btn" onClick={() => setShowSettings(true)} disabled={isProcessing}>
           ⚙️ Settings

@@ -137,21 +137,26 @@ async function callAPI(opts: {
   jsonSchema?: object
   maxTokens?: number
   preferCerebras?: boolean
+  vision?: boolean
+  reasoningEffort?: 'high' | 'medium' | 'low'
 }): Promise<string> {
-  const { messages, jsonMode = true, jsonSchema, maxTokens = 4000, preferCerebras = true } = opts
+  const { messages, jsonMode = true, jsonSchema, maxTokens = 4000, preferCerebras = true, vision = false, reasoningEffort } = opts
 
   // Try Cerebras if preferred
   if (preferCerebras) {
     try {
       const body: any = {
-        model: CEREBRAS_TEXT,
+        model: vision ? CEREBRAS_VISION : CEREBRAS_TEXT,
         messages,
         temperature: 1.0,
         top_p: 0.95,
         max_completion_tokens: maxTokens,
       }
+      if (reasoningEffort) {
+        body.reasoning_effort = reasoningEffort
+      }
       if (jsonSchema) {
-        body.response_format = { type: 'json_schema', json_schema: { name: 'circuit_output', strict: true, schema: jsonSchema } }
+        body.response_format = { type: 'json_schema', json_schema: { schema: jsonSchema } }
       } else if (jsonMode) {
         body.response_format = { type: 'json_object' }
       }
@@ -169,15 +174,17 @@ async function callAPI(opts: {
           total: (data.time_info?.total_time || 0) * 1000,
           model: `cerebras/${data.model || CEREBRAS_TEXT}`,
         }
-        console.log(`[Cerebras] ${data.model} | ${lastCerebrasTiming.total.toFixed(0)}ms`)
         return data.choices[0].message.content
       }
+      const errText = await response.text()
+      throw new Error(`Cerebras API error ${response.status}: ${errText}`)
     } catch (e) {
       throw new Error(`Cerebras API failed: ${e}`)
     }
   }
 
-  throw new Error('Cerebras API key not configured')
+  const key = getCerebrasKey()
+  throw new Error(`Cerebras API key not configured${!key ? ' (no key found in .env or localStorage)' : ''}`)
 }
 
 // ═══ Prompt Construction (Cache-Optimized) ═══
@@ -904,6 +911,7 @@ export async function extractMeasurementsFromImage(base64DataUrl: string): Promi
   return JSON.parse(await callAPI({
     messages,
     jsonSchema: SCOPE_MEASUREMENTS_SCHEMA,
+    vision: true,
   })) as WaveformMeasurement
 }
 
@@ -1078,8 +1086,7 @@ export function synthesizeVerification(
       })
       localStorage.setItem('circuitscope_history', JSON.stringify(history.slice(-10)))
     }
-  } catch (e) {
-    console.warn('Local storage history access disabled:', e)
+  } catch {
   }
 
   return {
@@ -1130,6 +1137,7 @@ Respond with JSON:
     messages,
     jsonSchema: CIRCUIT_ANALYSIS_SCHEMA,
     maxTokens: 4000,
+    reasoningEffort: 'high',
   })) as CircuitAnalysis
 }
 
@@ -1148,6 +1156,7 @@ export async function extractNetlistFromImage(base64DataUrl: string): Promise<Ne
   return JSON.parse(await callAPI({
     messages,
     jsonSchema: NETLIST_SCHEMA,
+    vision: true,
   })) as Netlist
 }
 
@@ -1299,6 +1308,159 @@ export const DEMO_CIRCUITS: DemoCircuit[] = [
     mismatchedWaveform: {
       type: 'sine', description: 'C drifted — cutoff shifted, heavy attenuation',
       measurements: { frequency: 1592, period: 0.000628, vHigh: 1.2, vLow: -1.2, vPp: 2.4, dutyCycle: 0.50, riseTime: 5e-5, fallTime: 5e-5 },
+    },
+  },
+  // ── Real-World Use Cases ──
+  {
+    id: 'bldc-motor',
+    name: 'BLDC Motor Driver',
+    description: 'Automotive — 3-phase half-bridge with hall sensors',
+    icon: 'motor',
+    industry: 'automotive',
+    useCase: 'Electric power steering motor controller — hall sensor feedback loop fails under vibration',
+    failureScenario: 'Dead-time violation on low-side FET causes cross-conduction, ~40A shoot-through current melts the gate driver output',
+    netlist: {
+      components: [
+        { ref: 'Q1', type: 'Q', value: 'IRF1405', nodes: ['VCC', 'PH_A'] },
+        { ref: 'Q2', type: 'Q', value: 'IRF1405', nodes: ['PH_A', 'GND'] },
+        { ref: 'Q3', type: 'Q', value: 'IRF1405', nodes: ['VCC', 'PH_B'] },
+        { ref: 'Q4', type: 'Q', value: 'IRF1405', nodes: ['PH_B', 'GND'] },
+        { ref: 'U1', type: 'U', value: 'DRV8323', nodes: ['VCC', 'GND', 'PWM_A', 'PWM_B', 'PWM_C', 'PH_A', 'PH_B', 'PH_C', 'OC_SET'] },
+        { ref: 'R1', type: 'R', value: '10kΩ', nodes: ['OC_SET', 'GND'] },
+        { ref: 'C1', type: 'C', value: '100nF', nodes: ['VCC', 'GND'] },
+        { ref: 'HALL1', type: 'U', value: 'AH1808', nodes: ['VCC', 'GND', 'HALL_A'] },
+        { ref: 'HALL2', type: 'U', value: 'AH1808', nodes: ['VCC', 'GND', 'HALL_B'] },
+      ],
+      nets: [
+        { name: 'VCC', nodes: ['VCC', 'Q1.D', 'Q3.D', 'U1.VIN', 'C1.1', 'HALL1.VCC', 'HALL2.VCC'], connections: [] },
+        { name: 'GND', nodes: ['GND', 'Q2.S', 'Q4.S', 'U1.GND', 'R1.2', 'C1.2', 'HALL1.GND', 'HALL2.GND'], connections: [] },
+        { name: 'PH_A', nodes: ['PH_A', 'Q1.S', 'Q2.D', 'U1.SHA'], connections: [] },
+        { name: 'PH_B', nodes: ['PH_B', 'Q3.S', 'Q4.D', 'U1.SHB'], connections: [] },
+        { name: 'OC_SET', nodes: ['OC_SET', 'U1.OC', 'R1.1'], connections: [] },
+        { name: 'HALL_A', nodes: ['HALL_A', 'HALL1.OUT'], connections: [] },
+        { name: 'HALL_B', nodes: ['HALL_B', 'HALL2.OUT'], connections: [] },
+      ],
+      groundNode: 'GND', vccNode: 'VCC',
+    },
+    matchingWaveform: {
+      type: 'square', description: 'PWM at 20kHz, 50% duty, clean commutation — 0-12V swing, 50ns dead time',
+      measurements: { frequency: 20000, period: 0.00005, vHigh: 11.8, vLow: 0.1, vPp: 11.7, dutyCycle: 0.50, riseTime: 1.5e-7, fallTime: 1.5e-7 },
+    },
+    mismatchedWaveform: {
+      type: 'square', description: 'Dead-time collapsed to 5ns — shoot-through at commutation edges, Vgs ringing >20V',
+      measurements: { frequency: 20000, period: 0.00005, vHigh: 9.5, vLow: 2.8, vPp: 6.7, dutyCycle: 0.42, riseTime: 5e-6, fallTime: 5e-6 },
+    },
+  },
+  {
+    id: 'ecg-frontend',
+    name: 'ECG Instrumentation Amplifier',
+    description: 'Medical — AD620-style front-end for patient monitoring',
+    icon: 'heart',
+    industry: 'medical',
+    useCase: 'Hospital bedside monitor — 50Hz mains hum saturates the right-leg drive amplifier',
+    failureScenario: 'RFI filter capacitor C1 drifts 40%, common-mode rejection drops from 100dB to 72dB, ECG trace becomes unreadable',
+    netlist: {
+      components: [
+        { ref: 'U1', type: 'U', value: 'AD620', nodes: ['VCC', 'GND', 'REF', 'RG1', 'RG2', 'IN+', 'IN-', 'OUT'] },
+        { ref: 'R1', type: 'R', value: '499Ω', nodes: ['RG1', 'RG2'] },
+        { ref: 'R2', type: 'R', value: '10kΩ', nodes: ['OUT', 'REF'] },
+        { ref: 'R3', type: 'R', value: '10kΩ', nodes: ['REF', 'GND'] },
+        { ref: 'C1', type: 'C', value: '100pF', nodes: ['IN+', 'GND'] },
+        { ref: 'C2', type: 'C', value: '100pF', nodes: ['IN-', 'GND'] },
+        { ref: 'D1', type: 'D', value: 'BAT54S', nodes: ['IN+', 'VCC', 'GND'] },
+        { ref: 'D2', type: 'D', value: 'BAT54S', nodes: ['IN-', 'VCC', 'GND'] },
+      ],
+      nets: [
+        { name: 'VCC', nodes: ['VCC', 'U1.V+', 'D1.K', 'D2.K'], connections: [] },
+        { name: 'GND', nodes: ['GND', 'U1.V-', 'R3.2', 'D1.A3', 'D2.A3', 'C1.2', 'C2.2'], connections: [] },
+        { name: 'REF', nodes: ['REF', 'U1.REF', 'R2.2', 'R3.1'], connections: [] },
+        { name: 'RG', nodes: ['RG1', 'RG2', 'R1.1', 'R1.2', 'U1.RG1', 'U1.RG2'], connections: [] },
+        { name: 'IN+', nodes: ['IN+', 'U1.IN+', 'C1.1', 'D1.A1'], connections: [] },
+        { name: 'IN-', nodes: ['IN-', 'U1.IN-', 'C2.1', 'D2.A1'], connections: [] },
+        { name: 'OUT', nodes: ['OUT', 'U1.OUT', 'R2.1'], connections: [] },
+      ],
+      groundNode: 'GND', vccNode: 'VCC',
+    },
+    matchingWaveform: {
+      type: 'sine', description: '0.5mV p-p ECG signal at 1Hz — clean common-mode rejection, CMRR ~100dB',
+      measurements: { frequency: 1, period: 1.0, vHigh: 0.00025, vLow: -0.00025, vPp: 0.0005, dutyCycle: 0.50, riseTime: 0.0001, fallTime: 0.0001 },
+    },
+    mismatchedWaveform: {
+      type: 'sine', description: '50Hz mains hum at 200mV p-p superimposed on ECG — CMRR collapsed to 72dB',
+      measurements: { frequency: 50, period: 0.02, vHigh: 0.15, vLow: -0.15, vPp: 0.30, dutyCycle: 0.50, riseTime: 0.001, fallTime: 0.001 },
+    },
+  },
+  {
+    id: 'buck-converter',
+    name: 'Buck Converter',
+    description: 'Power — LM2596 5V/3A step-down, 12V input',
+    icon: 'buck',
+    industry: 'power',
+    useCase: 'Industrial 24V-rail to 5V logic supply — inductor saturates at high ambient temp',
+    failureScenario: 'Inductor DCR increases 3× due to thermal aging, ripple current doubles, output capacitor heats and loses 40% capacitance, loop oscillates',
+    netlist: {
+      components: [
+        { ref: 'U1', type: 'U', value: 'LM2596', nodes: ['VIN', 'GND', 'FB', 'SW', 'ON/OFF'] },
+        { ref: 'L1', type: 'L', value: '47μH', nodes: ['SW', 'VOUT'] },
+        { ref: 'D1', type: 'D', value: 'SS54', nodes: ['SW', 'GND'] },
+        { ref: 'C1', type: 'C', value: '330μF', nodes: ['VIN', 'GND'] },
+        { ref: 'C2', type: 'C', value: '220μF', nodes: ['VOUT', 'GND'] },
+        { ref: 'R1', type: 'R', value: '3.3kΩ', nodes: ['VOUT', 'FB'] },
+        { ref: 'R2', type: 'R', value: '1kΩ', nodes: ['FB', 'GND'] },
+      ],
+      nets: [
+        { name: 'VIN', nodes: ['VIN', 'U1.VIN', 'C1.1'], connections: [] },
+        { name: 'GND', nodes: ['GND', 'U1.GND', 'D1.A', 'C1.2', 'C2.2', 'R2.2'], connections: [] },
+        { name: 'SW', nodes: ['SW', 'U1.SW', 'L1.1', 'D1.K'], connections: [] },
+        { name: 'VOUT', nodes: ['VOUT', 'L1.2', 'C2.1', 'R1.1'], connections: [] },
+        { name: 'FB', nodes: ['FB', 'U1.FB', 'R1.2', 'R2.1'], connections: [] },
+      ],
+      groundNode: 'GND', vccNode: 'VIN',
+    },
+    matchingWaveform: {
+      type: 'square', description: 'Switching at 150kHz, 30% duty, 30mV p-p ripple at VOUT — stable loop',
+      measurements: { frequency: 150000, period: 0.0000067, vHigh: 12.0, vLow: 0.0, vPp: 12.0, dutyCycle: 0.30, riseTime: 3e-8, fallTime: 3e-8 },
+    },
+    mismatchedWaveform: {
+      type: 'square', description: 'Inductor saturated — 200mV p-p ripple, loop oscillating at 8kHz subharmonic, VOUT droops to 4.2V',
+      measurements: { frequency: 8000, period: 0.000125, vHigh: 5.8, vLow: 4.0, vPp: 1.8, dutyCycle: 0.35, riseTime: 5e-6, fallTime: 5e-6 },
+    },
+  },
+  {
+    id: 'plc-input',
+    name: 'PLC Optoisolated Input',
+    description: 'Industrial — 24V sensor input with optocoupler isolation',
+    icon: 'plc',
+    industry: 'industrial',
+    useCase: 'Factory floor proximity sensor interface — optocoupler CTR degrades with age',
+    failureScenario: 'Optocoupler current transfer ratio drops from 100% to 30% after 50k hours, logic input never triggers, machine loses all reference sensors',
+    netlist: {
+      components: [
+        { ref: 'R1', type: 'R', value: '2.7kΩ', nodes: ['SENSOR_IN', 'OC1.A'] },
+        { ref: 'OC1', type: 'U', value: 'PC817', nodes: ['OC1.A', 'OC1.K', 'OC1.C', 'OC1.E'] },
+        { ref: 'R2', type: 'R', value: '10kΩ', nodes: ['OC1.C', 'VCC'] },
+        { ref: 'R3', type: 'R', value: '100kΩ', nodes: ['OC1.E', 'GND'] },
+        { ref: 'C1', type: 'C', value: '10nF', nodes: ['OC1.E', 'GND'] },
+        { ref: 'D1', type: 'D', value: '1N4148', nodes: ['OC1.K', 'GND'] },
+        { ref: 'U2', type: 'U', value: 'SN74HC14', nodes: ['VCC', 'GND', 'OC1.E', 'LOGIC_OUT'] },
+      ],
+      nets: [
+        { name: 'SENSOR_IN', nodes: ['SENSOR_IN', 'R1.1'], connections: [] },
+        { name: 'VCC', nodes: ['VCC', 'R2.1', 'U2.VCC'], connections: [] },
+        { name: 'GND', nodes: ['GND', 'D1.K', 'C1.2', 'R3.2', 'U2.GND', 'OC1.K'], connections: [] },
+        { name: 'OC_EMIT', nodes: ['OC1.E', 'R3.1', 'C1.1', 'U2.IN'], connections: [] },
+        { name: 'OC_COLL', nodes: ['OC1.C', 'R2.2'], connections: [] },
+        { name: 'LOGIC_OUT', nodes: ['LOGIC_OUT', 'U2.OUT'], connections: [] },
+      ],
+      groundNode: 'GND', vccNode: 'VCC',
+    },
+    matchingWaveform: {
+      type: 'square', description: '24V sensor pulse → 5V logic level, <10μs propagation delay, clean edges',
+      measurements: { frequency: 1000, period: 0.001, vHigh: 4.9, vLow: 0.05, vPp: 4.85, dutyCycle: 0.10, riseTime: 8e-7, fallTime: 6e-7 },
+    },
+    mismatchedWaveform: {
+      type: 'square', description: 'CTR collapsed — logic output never reaches 2.5V threshold, output stuck low',
+      measurements: { frequency: 1000, period: 0.001, vHigh: 1.8, vLow: 0.05, vPp: 1.75, dutyCycle: 0.02, riseTime: 5e-5, fallTime: 1e-4 },
     },
   },
 ]

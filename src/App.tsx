@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { CircuitDiagram } from './components/CircuitDiagram';
 import { WaveformViewer } from './components/WaveformViewer';
 import { AnalysisPanel } from './components/AnalysisPanel';
@@ -9,9 +10,10 @@ import { BringUpChecklist } from './components/BringUpChecklist';
 import { NetContextPanel } from './components/NetContextPanel';
 import { CadenceDashboard } from './components/CadenceDashboard';
 import { GlassIcon } from './components/GlassIcon';
-import { SiteHeader } from './components/SiteHeader';
-import { LandingHero } from './components/LandingHero';
-import { LandingStats, LandingSwarm, LandingFeatures, LandingStack, LandingCTA } from './components/LandingSections';
+import { LandingPage } from './components/LandingPage';
+import { AgentsView } from './components/AgentsView';
+import { KnowledgeGraphViewer } from './components/KnowledgeGraphViewer';
+import { getKnowledgeGraph, addKnowledgeEdge } from './services/knowledgeGraph';
 import type {
   CircuitAnalysis,
   VerificationResult,
@@ -40,11 +42,11 @@ import {
 import './App.css';
 
 type DemoStage = 'landing' | 'intro' | 'schematic' | 'analyzing' | 'analysis' | 'waveform' | 'verified';
-type SchematicTab = 'kicad' | 'image' | 'pdf' | 'paste' | 'demo';
-type ViewMode = 'circuitscope' | 'cadence';
+type SchematicTab = 'kicad' | 'image' | 'paste' | 'demo';
+type InternalTab = 'dashboard' | 'agents' | 'circuitscope' | 'knowledge';
 
 function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('cadence');
+  const [internalTab, setInternalTab] = useState<InternalTab>('dashboard');
   const [selectedCircuit, setSelectedCircuit] = useState<DemoCircuit | null>(null);
   const [netlist, setNetlist] = useState<Netlist | null>(null);
   const [analysis, setAnalysis] = useState<CircuitAnalysis | null>(null);
@@ -67,6 +69,7 @@ function App() {
   const [netContext, setNetContext] = useState<NetContext | null>(null);
   const [protocolResult, setProtocolResult] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'analysis' | 'bringup' | 'context'>('analysis');
+  const [graphSearchQuery, setGraphSearchQuery] = useState('');
   
   // Collaborative Agent Swarm states
   const [agentChatLines, setAgentChatLines] = useState<{ sender: string; text: string; role: 'vision' | 'theory' | 'verification' }[]>([]);
@@ -78,9 +81,18 @@ function App() {
   const analysisStartTime = useRef(0);
   const kicadInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const pdfInputRef = useRef<HTMLInputElement>(null);
   const scopeImageRef = useRef<HTMLInputElement>(null);
   const scopeCsvRef = useRef<HTMLInputElement>(null);
+
+  // Listen for cross-product navigation events
+  useEffect(() => {
+    const handleSwitchToCircuitScope = () => {
+      setInternalTab('circuitscope');
+      setStage('intro');
+    };
+    window.addEventListener('switchToCircuitScope', handleSwitchToCircuitScope);
+    return () => window.removeEventListener('switchToCircuitScope', handleSwitchToCircuitScope);
+  }, []);
 
   const reset = useCallback(() => {
     setSelectedCircuit(null);
@@ -124,10 +136,26 @@ function App() {
     const steps = generateBringUpChecklist(inputNetlist);
     setBringUpSteps(steps);
 
-    addAgentLog('Theory Agent', `Formula analysis complete: f = ${theoretical.calculatedFrequency ? theoretical.calculatedFrequency.toFixed(1) + 'Hz' : 'N/A'}, Vpp = ${theoretical.calculatedVpp?.toFixed(1)}V.`, 'theory');
+    addAgentLog('Theory Agent', `Formula analysis complete: f = ${theoretical.calculatedFrequency ? theoretical.calculatedFrequency.toFixed(1) + 'Hz' : 'N/A'}, Vpp = ${theoretical.calculatedVpp != null ? theoretical.calculatedVpp.toFixed(1) + 'V' : 'N/A'}.`, 'theory');
     addAgentLog('Theory Agent', 'Triggering Gemma 4 vision/behavior prediction on Cerebras API...', 'theory');
     
-    const llmAnalysis = await analyzeCircuit(inputNetlist);
+    let llmAnalysis: CircuitAnalysis;
+    try {
+      llmAnalysis = await analyzeCircuit(inputNetlist);
+    } catch (err: any) {
+      addAgentLog('Theory Agent', `LLM analysis failed: ${err.message}. Using fallback.`, 'theory');
+      llmAnalysis = {
+        netlist: inputNetlist,
+        predictedBehavior: 'Analysis unavailable — LLM call failed',
+        predictedWaveform: {
+          measurements: { frequency: 0, period: 0, vHigh: 5, vLow: 0, vPp: 5, dutyCycle: 0.5, riseTime: 0, fallTime: 0 },
+          type: 'unknown',
+          description: 'Could not predict waveform',
+        },
+        issues: ['LLM analysis failed — check API key and network'],
+        confidence: 0,
+      };
+    }
 
     // Merge
     if (theoretical.calculatedFrequency && llmAnalysis.predictedWaveform) {
@@ -138,6 +166,22 @@ function App() {
 
     addAgentLog('Theory Agent', 'Behavior model loaded. Nominals established.', 'theory');
     setAgentStatuses(['done', 'done', 'active']);
+
+    // Save circuit analysis to knowledge graph for cross-product integration
+    try {
+      const circuitType = inputNetlist.components.some(c => c.value?.toUpperCase().includes('555')) ? '555_timer' :
+        inputNetlist.components.some(c => c.value?.toUpperCase().includes('CD40')) ? 'CMOS' :
+        inputNetlist.components.some(c => c.type === 'Q') ? 'transistor_circuit' : 'general_circuit';
+      
+      addKnowledgeEdge(circuitType, 'analyzed_by', 'CircuitScope', 'agent_consensus');
+      if (theoretical.calculatedFrequency) {
+        addKnowledgeEdge(circuitType, 'has_frequency', `${theoretical.calculatedFrequency.toFixed(1)}Hz`, 'agent_consensus');
+      }
+      addKnowledgeEdge(circuitType, 'circuit_type', theoretical.circuitType, 'agent_consensus');
+      addAgentLog('Knowledge Graph', 'system', `Circuit analysis saved to knowledge graph`, 'info');
+    } catch (e) {
+      // Knowledge graph save failed, continue
+    }
 
     // Agent 3: Signal Verification Agent
     addAgentLog('Verification Agent', 'Awaiting physical oscilloscope telemetry input (CSV/image)...', 'verification');
@@ -186,6 +230,7 @@ function App() {
       await runAgentPipeline(parsed);
     } catch (err: any) {
       setPasteError(err.message || 'Failed to parse KiCad netlist');
+      setStatusMsg('');
     }
   }, [reset, runAgentPipeline]);
 
@@ -206,6 +251,7 @@ function App() {
       await runAgentPipeline(parsed);
     } catch (err: any) {
       setPasteError(err.message || 'Failed to extract netlist from image');
+      setStatusMsg('');
     }
   }, [reset, runAgentPipeline]);
 
@@ -295,6 +341,19 @@ function App() {
     const result = synthesizeVerification(theoretical, demoWave.measurements, currentNetlist);
     setVerification(result);
     setStage('verified');
+
+    // Save verification results to knowledge graph
+    try {
+      addKnowledgeEdge(selectedCircuit.id, 'verification_score', `${(result.score * 100).toFixed(0)}%`, 'agent_consensus');
+      addKnowledgeEdge(selectedCircuit.id, 'has_defects', result.differences.length > 0 ? 'yes' : 'no', 'agent_consensus');
+      if (result.differences.length > 0) {
+        result.differences.forEach(diff => {
+          addKnowledgeEdge(selectedCircuit.id, 'issue_found', diff.substring(0, 50), 'agent_consensus');
+        });
+      }
+    } catch (e) {
+      // Knowledge graph save failed
+    }
   }, [selectedCircuit, analysis, currentNetlist]);
 
   // ── Pipeline Steps ──
@@ -326,68 +385,82 @@ function App() {
     if (circuit) {
       setSelectedCircuit(circuit);
       runAgentPipeline(circuit.netlist);
-      setViewMode('circuitscope');
+      setInternalTab('circuitscope');
     }
   }, [runAgentPipeline]);
 
   return (
+    <ErrorBoundary>
     <div className="app">
-      {/* Landing Page */}
+      {/* Landing Page - full scrollable page */}
       {stage === 'landing' && (
-        <>
-          <SiteHeader />
-          <main className="pt-16">
-            <LandingHero />
-            <LandingStats />
-            <LandingSwarm />
-            <LandingFeatures />
-            <LandingStack />
-            <LandingCTA />
-            <div className="border-t border-border py-8 text-center text-sm text-muted-foreground">
-              <p>Ready to launch? Click "Launch swarm" button above to begin inspection.</p>
-              <button
-                id="launch"
-                onClick={() => {
-                  setStage('intro');
-                  setViewMode('cadence');
-                }}
-                className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.03] active:scale-95"
-              >
-                Start Inspection
-              </button>
-            </div>
-          </main>
-        </>
+        <div style={{ height: '100%', overflow: 'auto' }}>
+          <LandingPage
+            onEnterCadence={() => { setStage('intro'); setInternalTab('dashboard'); }}
+            onEnterCircuitScope={() => { setStage('intro'); setInternalTab('circuitscope'); }}
+          />
+        </div>
       )}
 
       {/* App View (non-landing) */}
       {stage !== 'landing' && (
         <>
-          {/* View Mode Toggle Rail */}
-          <div className="view-mode-toggle">
-            <button
-              id="mode-cadence"
-              className={`mode-btn ${viewMode === 'cadence' ? 'active' : ''}`}
-              onClick={() => setViewMode('cadence')}
-            >
-              <GlassIcon name="factory" size={13} variant={viewMode === 'cadence' ? 'purple' : 'gray'} />
-              Cadence — Assembly Line
-            </button>
-            <button
-              id="mode-circuitscope"
-              className={`mode-btn ${viewMode === 'circuitscope' ? 'active' : ''}`}
-              onClick={() => setViewMode('circuitscope')}
-            >
-              <GlassIcon name="bolt" size={13} variant={viewMode === 'circuitscope' ? 'purple' : 'gray'} />
-              CircuitScope — Hardware Debug
-            </button>
+          {/* Top navigation bar */}
+          <div className="app-topnav">
+            <div className="app-topnav-left">
+              <button className="app-topnav-home" onClick={() => { reset(); setStage('landing'); }} aria-label="Back to home">
+                <GlassIcon name="bolt" size={14} variant="purple" />
+                <span className="app-topnav-logo">Cadence</span>
+              </button>
+            </div>
+            <nav className="app-topnav-tabs" role="tablist" aria-label="Main navigation">
+              <button role="tab" aria-selected={internalTab === 'dashboard'} className={`app-topnav-tab ${internalTab === 'dashboard' ? 'active' : ''}`} onClick={() => setInternalTab('dashboard')}>
+                <GlassIcon name="factory" size={13} variant={internalTab === 'dashboard' ? 'purple' : 'gray'} />
+                Dashboard
+              </button>
+              <button role="tab" aria-selected={internalTab === 'agents'} className={`app-topnav-tab ${internalTab === 'agents' ? 'active' : ''}`} onClick={() => setInternalTab('agents')}>
+                <GlassIcon name="brain" size={13} variant={internalTab === 'agents' ? 'purple' : 'gray'} />
+                Agents
+              </button>
+              <button role="tab" aria-selected={internalTab === 'circuitscope'} className={`app-topnav-tab ${internalTab === 'circuitscope' ? 'active' : ''}`} onClick={() => setInternalTab('circuitscope')}>
+                <GlassIcon name="bolt" size={13} variant={internalTab === 'circuitscope' ? 'purple' : 'gray'} />
+                CircuitScope
+              </button>
+              <button role="tab" aria-selected={internalTab === 'knowledge'} className={`app-topnav-tab ${internalTab === 'knowledge' ? 'active' : ''}`} onClick={() => setInternalTab('knowledge')}>
+                <GlassIcon name="camera" size={13} variant={internalTab === 'knowledge' ? 'purple' : 'gray'} />
+                Knowledge
+              </button>
+            </nav>
           </div>
 
-      {/* ── Cadence view ── */}
-      {viewMode === 'cadence' && <CadenceDashboard onTriggerProbeTest={handleTriggerProbeTest} />}
+      {/* ── Dashboard ── */}
+      {internalTab === 'dashboard' && <CadenceDashboard onTriggerProbeTest={handleTriggerProbeTest} />}
+
+      {/* ── Agents ── */}
+      {internalTab === 'agents' && <AgentsView />}
+
+      {/* ── Knowledge ── */}
+      {internalTab === 'knowledge' && (
+        <div className="knowledge-fullscreen">
+          <div className="knowledge-toolbar">
+            <h3>Knowledge Graph</h3>
+            <div className="knowledge-search">
+              <input
+                type="text"
+                placeholder="Search nodes..."
+                value={graphSearchQuery}
+                onChange={e => setGraphSearchQuery(e.target.value)}
+                className="knowledge-search-input"
+              />
+              <span className="knowledge-count">{getKnowledgeGraph().length} edges</span>
+            </div>
+          </div>
+          <KnowledgeGraphViewer edges={getKnowledgeGraph()} searchQuery={graphSearchQuery} />
+        </div>
+      )}
 
       {/* ══ CircuitScope: Stage 1 — Intro / Input ══ */}
-      {viewMode === 'circuitscope' && stage === 'intro' && (
+      {internalTab === 'circuitscope' && stage === 'intro' && (
         <div className="intro-screen">
           <div className="intro-content">
             <div className="intro-badge">
@@ -410,6 +483,38 @@ function App() {
               <div className="tech-pill">Vision Agent — OCR &amp; Parse</div>
               <div className="tech-pill">Theory Agent — Formulaic Math</div>
               <div className="tech-pill">Verification Agent — Signal Sync</div>
+            </div>
+
+            {/* Real-World Case Studies */}
+            <div className="case-studies-row">
+              <div className="circuit-card circuit-automotive">
+                <span className="circuit-industry-tag industry-automotive">AUTOMOTIVE</span>
+                <span style={{ fontSize: '18px' }}>🚗</span>
+                <span className="circuit-card-name">BLDC Motor Shoot-Through</span>
+                <span className="circuit-card-desc">Dead-time violation melts gate driver — $2,400 repair per ECU</span>
+                <span className="circuit-usecase">Agent detects: Vgs ringing &gt;20V, cross-conduction at commutation</span>
+              </div>
+              <div className="circuit-card circuit-medical">
+                <span className="circuit-industry-tag industry-medical">MEDICAL</span>
+                <span style={{ fontSize: '18px' }}>🏥</span>
+                <span className="circuit-card-name">ECG CMRR Degradation</span>
+                <span className="circuit-card-desc">RFI filter drift makes ECG unreadable — misdiagnosis risk</span>
+                <span className="circuit-usecase">Agent detects: CMRR drop 100dB→72dB, 50Hz mains bleed-through</span>
+              </div>
+              <div className="circuit-card circuit-power">
+                <span className="circuit-industry-tag industry-power">POWER</span>
+                <span style={{ fontSize: '18px' }}>⚡</span>
+                <span className="circuit-card-name">Buck Converter Saturation</span>
+                <span className="circuit-card-desc">Aged inductor doubles ripple — 5V rail droops to 4.2V, logic glitches</span>
+                <span className="circuit-usecase">Agent detects: 200mV p-p ripple, subharmonic oscillation at 8kHz</span>
+              </div>
+              <div className="circuit-card circuit-industrial">
+                <span className="circuit-industry-tag industry-industrial">INDUSTRIAL</span>
+                <span style={{ fontSize: '18px' }}>🏭</span>
+                <span className="circuit-card-name">PLC Optocoupler Failure</span>
+                <span className="circuit-card-desc">CTR drops 100%→30% after 50k hours — machine loses all sensors</span>
+                <span className="circuit-usecase">Agent detects: logic level never reaches 2.5V threshold, stuck low</span>
+              </div>
             </div>
 
             {/* Input card */}
@@ -447,6 +552,8 @@ function App() {
                 </button>
               </div>
 
+              {pasteError && <div className="paste-error">{pasteError}</div>}
+
               {schematicTab === 'kicad' && (
                 <div className="upload-box" onClick={() => kicadInputRef.current?.click()}>
                   <input ref={kicadInputRef} type="file" accept=".net,.sp,.cir,.spice" onChange={handleKiCadUpload} style={{ display: 'none' }} />
@@ -466,15 +573,14 @@ function App() {
                     onChange={(e) => { setPasteText(e.target.value); setPasteError(''); }}
                     rows={7}
                   />
-                  {pasteError && <div className="paste-error">{pasteError}</div>}
-                  <button
-                    id="btn-parse-analyze"
-                    className="btn-analyze"
-                    onClick={handlePasteNetlist}
-                    disabled={isProcessing || !pasteText.trim()}
-                  >
-                    Parse &amp; Analyze
-                  </button>
+              <button
+                id="btn-parse-analyze"
+                className="btn-analyze"
+                onClick={handlePasteNetlist}
+                disabled={isProcessing || !pasteText.trim()}
+              >
+                Parse &amp; Analyze
+              </button>
                 </div>
               )}
 
@@ -493,12 +599,20 @@ function App() {
                     <button
                       key={circuit.id}
                       id={`circuit-demo-${circuit.id}`}
-                      className="circuit-card"
+                      className={`circuit-card ${circuit.industry ? `circuit-${circuit.industry}` : ''}`}
                       onClick={() => handleSelectCircuit(circuit)}
                     >
+                      {circuit.industry && (
+                        <span className={`circuit-industry-tag industry-${circuit.industry}`}>
+                          {circuit.industry.toUpperCase()}
+                        </span>
+                      )}
                       <GlassIcon name={circuit.icon} size={24} variant="purple" style={{ marginBottom: '4px' }} />
                       <span className="circuit-card-name">{circuit.name}</span>
                       <span className="circuit-card-desc">{circuit.description}</span>
+                      {circuit.useCase && (
+                        <span className="circuit-usecase">{circuit.useCase}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -510,7 +624,7 @@ function App() {
       )}
 
       {/* ══ CircuitScope: Stage 2 — Agent Orchestration Loading ══ */}
-      {viewMode === 'circuitscope' && stage === 'analyzing' && (
+      {internalTab === 'circuitscope' && stage === 'analyzing' && (
         <div className="orchestration-screen">
           <div className="orchestration-card">
             <div className="orbit-ring" />
@@ -550,7 +664,7 @@ function App() {
       )}
 
       {/* ══ CircuitScope: Stage 3 — Analysis Workspace ══ */}
-      {viewMode === 'circuitscope' && stage !== 'intro' && stage !== 'analyzing' && currentNetlist && (
+      {internalTab === 'circuitscope' && stage !== 'intro' && stage !== 'analyzing' && currentNetlist && (
         <div className="demo-layout">
           <header className="demo-header">
             <div className="header-left">
@@ -653,10 +767,9 @@ function App() {
                           <div className="agent-result">
                             <div className="agent-label">{agentResults.theoretical.circuitType}</div>
                             <div className="formula">{agentResults.theoretical.formula}</div>
-                            {agentResults.theoretical.calculatedFrequency && (
-                              <div className="calc-value">f = {agentResults.theoretical.calculatedFrequency.toFixed(1)} Hz</div>
-                            )}
-                            {agentResults.theoretical.calculatedDutyCycle !== null && (
+                            <div className="calc-value">f = {agentResults.theoretical.calculatedFrequency != null ? agentResults.theoretical.calculatedFrequency.toFixed(1) + ' Hz' : 'N/A (LLM will predict)'}</div>
+                            <div className="calc-value">Vpp = {agentResults.theoretical.calculatedVpp != null ? agentResults.theoretical.calculatedVpp.toFixed(1) + ' V' : 'N/A'}</div>
+                            {agentResults.theoretical.calculatedDutyCycle != null && (
                               <div className="calc-value">Duty = {(agentResults.theoretical.calculatedDutyCycle * 100).toFixed(1)}%</div>
                             )}
                             <ul className="notes-list">
@@ -752,13 +865,26 @@ function App() {
                   </div>
                 </section>
 
-                {verification && (
+                {verification && waveform && (
                   <section className="panel verification-panel">
-                    <div className="panel-header"><h2>Verification</h2></div>
+                    <div className="panel-header">
+                      <h2>Verification</h2>
+                      <button 
+                        className="btn-small"
+                        style={{ color: '#a78bfa', borderColor: 'rgba(167,139,250,0.3)' }}
+                        onClick={() => {
+                          // Switch to Cadence dashboard with circuit context
+                          setInternalTab('dashboard');
+                        }}
+                      >
+                        <GlassIcon name="bolt" size={10} variant="purple" style={{ padding: '1px' }} /> Switch to Cadence
+                      </button>
+                    </div>
                     <div className="panel-body">
                       <VerificationPanel
-                        predicted={analysis?.predictedWaveform?.measurements || waveform!}
-                        actual={waveform!}
+                        predicted={analysis?.predictedWaveform?.measurements || waveform}
+                        actual={waveform}
+                        verification={verification}
                       />
                     </div>
                   </section>
@@ -771,6 +897,7 @@ function App() {
        </>
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 
