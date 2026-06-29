@@ -7,7 +7,7 @@ interface Props {
 export function NetContextPanel({ context }: Props) {
   if (!context) return (
     <div className="net-context empty-state">
-      <div className="empty-icon">🔍</div>
+      <div className="empty-icon"><span style={{fontSize: '1.5rem', opacity: 0.3}}>#</span></div>
       <p>Click a component on the schematic to see details</p>
     </div>
   )

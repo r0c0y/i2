@@ -22,7 +22,7 @@ export function PipelineSteps({ steps, activeIndex, completedIndex }: Props) {
               className={`pipeline-step ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}`}
             >
               <div className="pipeline-step-number">
-                {isCompleted ? '✓' : i + 1}
+                {isCompleted ? 'Done' : i + 1}
               </div>
               <span>{step.label}</span>
             </div>

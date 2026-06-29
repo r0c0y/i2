@@ -35,14 +35,14 @@ export function BringUpChecklist({ steps }: Props) {
           return (
             <div key={step.id} className={`bringup-step ${isDone ? 'done' : ''} ${isOpen ? 'open' : ''}`}>
               <button className="bringup-step-header" onClick={() => { toggle(step.id); setExpanded(isOpen ? null : step.id) }}>
-                <span className="bringup-check">{isDone ? '✓' : `${i + 1}`}</span>
+                <span className="bringup-check">{isDone ? 'Done' : `${i + 1}`}</span>
                 <span className="bringup-title">{step.title}</span>
                 <span className="bringup-expand">{isOpen ? '−' : '+'}</span>
               </button>
               {isOpen && (
                 <div className="bringup-detail">
                   <p className="bringup-instruction">{step.instruction}</p>
-                  {step.warning && <div className="bringup-warning">⚠ {step.warning}</div>}
+                  {step.warning && <div className="bringup-warning">! {step.warning}</div>}
                   {step.probePoints && step.probePoints.length > 0 && (
                     <div className="bringup-section">
                       <strong>Probe Points:</strong>
